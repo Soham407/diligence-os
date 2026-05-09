@@ -1,0 +1,10 @@
+node_modules
+.pnpm-store
+.next
+.expo
+.expo-shared
+dist
+coverage
+.env
+.env.local
+supabase/.temp

@@ -1,0 +1,16 @@
+{
+  "name": "diligence-os",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.0.9",
+  "scripts": {
+    "typecheck": "corepack pnpm -r --if-present typecheck",
+    "test": "corepack pnpm -r --if-present test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1"
+  }
+}
