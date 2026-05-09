@@ -5,6 +5,7 @@ node_modules
 .expo-shared
 dist
 coverage
+*.tsbuildinfo
 .env
 .env.local
 supabase/.temp
