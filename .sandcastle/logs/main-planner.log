@@ -1,0 +1,55 @@
+
+--- Run started: 2026-05-09T20:29:32.029Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Git worktree operation failed: Provider 'docker' create failed: Image 'sandcastle:tonystark' not found locally. Build it first with 'sandcastle docker build-image'.
+
+--- Run started: 2026-05-09T20:32:29.242Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.1s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~4533 tokens
+Expanding shell expressions done (1.4s)
+Agent started
+<plan>
+{"issues":[{"id":"20","title":"Repo bootstrap & monorepo scaffolding","branch":"sandcastle/issue-20-repo-bootstrap-monorepo-scaffolding"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-09T20:33:51.631Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.1s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~4533 tokens
+Expanding shell expressions done (1.2s)
+Agent started
+<plan>
+{"issues":[{"id":"20","title":"Repo bootstrap & monorepo scaffolding","branch":"sandcastle/issue-20-repo-bootstrap-monorepo-scaffolding"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.

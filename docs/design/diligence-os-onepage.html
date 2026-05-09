@@ -1,0 +1,1179 @@
+
+<!doctype html>
+<html lang="en">
+<head><script>(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+})();</script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diligence OS — One-page financial intelligence website</title>
+  <style>
+    :root {
+      --bg: oklch(99% 0.002 240);
+      --surface: oklch(100% 0 0);
+      --surface-2: oklch(97% 0.004 240);
+      --fg: oklch(18% 0.012 250);
+      --muted: oklch(54% 0.012 250);
+      --border: oklch(92% 0.005 250);
+      --accent: oklch(58% 0.18 255);
+      --accent-soft: oklch(93% 0.03 255);
+      --success: oklch(63% 0.15 155);
+      --warn: oklch(72% 0.14 78);
+
+      --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+      --font-mono: 'SFMono-Regular', ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Menlo, monospace;
+
+      --shadow: 0 24px 60px rgba(8, 15, 31, 0.08);
+      --radius-xl: 30px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --max: 1360px;
+    }
+
+    * { box-sizing: border-box; }
+    html { color-scheme: light; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-body);
+      color: var(--fg);
+      background:
+        radial-gradient(900px 620px at 84% 10%, color-mix(in oklch, var(--accent) 14%, transparent), transparent 55%),
+        radial-gradient(1100px 740px at 12% 0%, color-mix(in oklch, var(--accent) 9%, transparent), transparent 48%),
+        linear-gradient(180deg, color-mix(in oklch, var(--bg) 86%, white), var(--bg));
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(to right, rgba(17, 24, 39, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(17, 24, 39, 0.028) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.3;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.35), transparent 72%);
+    }
+
+    a, button { color: inherit; font: inherit; }
+    a { text-decoration: none; }
+
+    .site {
+      position: relative;
+      z-index: 1;
+      width: min(var(--max), calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 16px 0 36px;
+    }
+
+    .shell,
+    .hero,
+    .card,
+    .panel,
+    .cta,
+    .stickybar {
+      background: color-mix(in oklch, var(--surface) 96%, white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+    }
+
+    .stickybar {
+      position: sticky;
+      top: 12px;
+      z-index: 9;
+      margin-bottom: 16px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 24%, white), color-mix(in oklch, var(--accent) 8%, white));
+      color: color-mix(in oklch, var(--accent) 84%, black);
+      font-weight: 700;
+      letter-spacing: -0.05em;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+      flex: none;
+    }
+
+    .brand-copy {
+      min-width: 0;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 0.98rem;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+
+    .brand-copy span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .nav a {
+      padding: 9px 11px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: border-color .16s ease, background .16s ease, color .16s ease;
+    }
+
+    .nav a:hover {
+      color: var(--fg);
+      background: white;
+      border-color: var(--border);
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 28px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      right: -80px;
+      bottom: -140px;
+      width: 340px;
+      height: 340px;
+      border-radius: 50%;
+      background: radial-gradient(circle, color-mix(in oklch, var(--accent) 17%, transparent), transparent 70%);
+      pointer-events: none;
+    }
+
+    .eyebrow,
+    .kicker {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow {
+      color: color-mix(in oklch, var(--accent) 70%, black);
+    }
+
+    .hero h1 {
+      margin: 14px 0 0;
+      font-family: var(--font-display);
+      font-size: clamp(3rem, 4.6vw, 5.9rem);
+      line-height: 0.94;
+      letter-spacing: -0.06em;
+      max-width: 11ch;
+      text-wrap: balance;
+    }
+
+    .hero p {
+      margin: 18px 0 0;
+      max-width: 62ch;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      margin-top: 22px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: white;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      transition: transform .16s ease, border-color .16s ease, background .16s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); border-color: color-mix(in oklch, var(--accent) 35%, var(--border)); }
+    .btn.primary {
+      background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 16%, white), color-mix(in oklch, var(--accent) 8%, white));
+      color: color-mix(in oklch, var(--accent) 90%, black);
+    }
+
+    .pills {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklch, var(--surface-2) 88%, white);
+      color: var(--muted);
+      font-size: 0.84rem;
+    }
+
+    .pill strong {
+      color: var(--fg);
+      font-weight: 600;
+    }
+
+    .hero-panel {
+      display: grid;
+      gap: 14px;
+      align-content: start;
+      position: relative;
+      z-index: 1;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .metric {
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, white, color-mix(in oklch, var(--bg) 78%, white));
+      display: grid;
+      gap: 10px;
+      min-height: 132px;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      font-size: 2rem;
+      letter-spacing: -0.05em;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .right-stack {
+      display: grid;
+      gap: 12px;
+      height: 100%;
+    }
+
+    .snapshot {
+      padding: 18px;
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      background:
+        linear-gradient(180deg, color-mix(in oklch, var(--surface) 96%, white), color-mix(in oklch, var(--bg) 76%, white));
+      display: grid;
+      gap: 14px;
+      align-content: start;
+    }
+
+    .snapshot h2,
+    .section h2,
+    .cta h2 {
+      margin: 0;
+      font-size: clamp(1.8rem, 2.5vw, 3rem);
+      letter-spacing: -0.05em;
+      line-height: 0.98;
+    }
+
+    .snapshot p,
+    .section-lead,
+    .cta p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.98rem;
+      line-height: 1.65;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+    }
+
+    .flow-item {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .flow-item:first-child { border-top: 0; padding-top: 0; }
+
+    .flow-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+    }
+
+    .flow-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.93rem;
+      letter-spacing: -0.01em;
+    }
+
+    .flow-item span {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .flow-item em {
+      color: var(--muted);
+      font-style: normal;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .section {
+      padding: 34px 4px 0;
+      margin-top: 16px;
+    }
+
+    .section-head {
+      display: grid;
+      gap: 10px;
+      max-width: 820px;
+      margin-bottom: 18px;
+    }
+
+    .section-head .kicker {
+      color: color-mix(in oklch, var(--accent) 72%, black);
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card,
+    .panel {
+      padding: 18px;
+      border-radius: 24px;
+      background: color-mix(in oklch, var(--surface) 97%, white);
+    }
+
+    .card h3,
+    .panel h3 {
+      margin: 0 0 8px;
+      font-size: 1.02rem;
+      letter-spacing: -0.02em;
+    }
+
+    .card p,
+    .panel p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .tagrow {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: white;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .quote {
+      margin-top: 14px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 18px 18px 0;
+      background: color-mix(in oklch, var(--accent) 5%, white);
+      color: color-mix(in oklch, var(--fg) 92%, black);
+      line-height: 1.65;
+    }
+
+    .section-rule {
+      margin: 30px 0 0;
+      border: 0;
+      height: 1px;
+      background: linear-gradient(90deg, var(--border), transparent);
+    }
+
+    .persona {
+      display: grid;
+      gap: 12px;
+    }
+
+    .persona strong {
+      display: block;
+      font-size: 1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .persona small {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 10px;
+    }
+
+    .timeline-item {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .timeline-item:first-child { border-top: 0; padding-top: 0; }
+
+    .timeline-index {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: white;
+    }
+
+    .timeline-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 0.94rem;
+      letter-spacing: -0.01em;
+    }
+
+    .timeline-item span {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.55;
+    }
+
+    .timeline-item em {
+      color: color-mix(in oklch, var(--accent) 74%, black);
+      font-style: normal;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .codegrid {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 14px;
+    }
+
+    pre,
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      border-radius: 22px;
+      background: #0f172a;
+      color: #e5eefc;
+      overflow: auto;
+      line-height: 1.6;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    }
+
+    .mini-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mini-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: start;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .mini-row:first-child { border-top: 0; padding-top: 0; }
+
+    .mini-row strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 0.92rem;
+    }
+
+    .mini-row span {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.5;
+    }
+
+    .mini-row em {
+      font-style: normal;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .cta {
+      margin-top: 18px;
+      padding: 24px 22px;
+      display: grid;
+      grid-template-columns: 1.1fr auto;
+      gap: 16px;
+      align-items: center;
+      background:
+        linear-gradient(180deg, color-mix(in oklch, var(--surface) 98%, white), color-mix(in oklch, var(--bg) 77%, white));
+    }
+
+    .cta .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    footer {
+      margin-top: 18px;
+      padding: 8px 4px 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.55;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 1080px) {
+      .hero,
+      .grid-3,
+      .grid-2,
+      .codegrid,
+      .cta {
+        grid-template-columns: 1fr;
+      }
+
+      .stickybar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .site {
+        width: min(100vw - 20px, var(--max));
+        padding-top: 10px;
+      }
+
+      .hero,
+      .snapshot,
+      .card,
+      .panel,
+      .cta {
+        border-radius: 22px;
+      }
+
+      .hero {
+        padding: 20px;
+      }
+
+      .hero h1 {
+        font-size: clamp(2.4rem, 14vw, 3.4rem);
+      }
+
+      .metric-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-item,
+      .timeline-item,
+      .mini-row {
+        grid-template-columns: 22px minmax(0, 1fr);
+      }
+
+      .flow-item em,
+      .timeline-item em,
+      .mini-row em {
+        grid-column: 2;
+      }
+
+      .nav a {
+        padding-inline: 9px;
+      }
+
+      .cta .actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="site" id="top">
+    <header class="stickybar">
+      <div class="brand">
+        <div class="brand-mark">DO</div>
+        <div class="brand-copy">
+          <strong>Diligence OS</strong>
+          <span>India financial intelligence, one continuous page</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Site sections">
+        <a href="#problem">Problem</a>
+        <a href="#product">Product</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#trust">Trust</a>
+        <a href="#schema">Schema</a>
+        <a href="#cta">Launch</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">For agency operators, SME consultants, and B2B wealth managers</div>
+        <h1>Turn filings, transcripts, and disclosures into an auditable research layer.</h1>
+        <p>
+          Diligence OS resolves Indian companies, pulls the right primary sources, and
+          composes structured intelligence with claim-level citations. The interface is
+          built as a single page so the story reads clearly: resolve, ingest, reason,
+          verify, export.
+        </p>
+        <div class="hero-actions">
+          <a class="btn primary" href="#product">Explore the product</a>
+          <a class="btn" href="#workflow">See how it works</a>
+        </div>
+        <div class="pills" aria-label="platform facts">
+          <div class="pill"><strong>3 tiers</strong> Retail, B2B, Agency</div>
+          <div class="pill"><strong>1 claim model</strong> Per-source citations</div>
+          <div class="pill"><strong>2 execution paths</strong> Stream or job</div>
+          <div class="pill"><strong>0 Python</strong> Edge functions only</div>
+        </div>
+      </div>
+
+      <div class="right-stack">
+        <div class="snapshot">
+          <div class="eyebrow">Live workspace</div>
+          <h2>One surface, three modes.</h2>
+          <p>
+            Retail mode streams a fast summary. B2B mode runs a deeper dossier in the
+            background. Agency mode keeps client work isolated and white-label.
+          </p>
+          <div class="flow">
+            <div class="flow-item">
+              <div class="flow-dot">1</div>
+              <div>
+                <strong>Resolve the company</strong>
+                <span>Name, ticker, CIN, or ISIN map to one canonical company_id.</span>
+              </div>
+              <em>search</em>
+            </div>
+            <div class="flow-item">
+              <div class="flow-dot">2</div>
+              <div>
+                <strong>Pull the primary sources</strong>
+                <span>BSE/NSE filings and earnings transcripts feed the source cache.</span>
+              </div>
+              <em>layer 1</em>
+            </div>
+            <div class="flow-item">
+              <div class="flow-dot">3</div>
+              <div>
+                <strong>Compose the report</strong>
+                <span>Claude Managed Agents emit typed JSON that the Composer validates.</span>
+              </div>
+              <em>layer 2</em>
+            </div>
+            <div class="flow-item">
+              <div class="flow-dot">4</div>
+              <div>
+                <strong>Export an immutable artifact</strong>
+                <span>The final report lands in Layer 3 with citations and audit history.</span>
+              </div>
+              <em>layer 3</em>
+            </div>
+          </div>
+        </div>
+
+        <div class="metric-strip">
+          <div class="metric">
+            <div class="label">Retail</div>
+            <strong>60s</strong>
+            <span>Fast summaries for investors who want the gist without the scroll.</span>
+          </div>
+          <div class="metric">
+            <div class="label">B2B</div>
+            <strong>5m</strong>
+            <span>Due diligence dossiers for consultants, advisors, and wealth managers.</span>
+          </div>
+          <div class="metric">
+            <div class="label">Agency</div>
+            <strong>white-label</strong>
+            <span>Client-facing research packs that never reuse another firm’s cache slice.</span>
+          </div>
+          <div class="metric">
+            <div class="label">Trust</div>
+            <strong>cite-first</strong>
+            <span>Every claim links back to the exact page, timestamp, or HTML anchor.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="problem">
+      <div class="section-head">
+        <div class="kicker">Problem statement</div>
+        <h2>Financial intelligence in India is fragmented across too many surfaces.</h2>
+        <p class="section-lead">
+          Users are not missing information. They are missing a system that can resolve the
+          entity, fetch the right local sources, and turn them into a report they can trust
+          without doing the assembly by hand.
+        </p>
+      </div>
+
+      <div class="grid-3">
+        <article class="card persona">
+          <small>Retail investor</small>
+          <strong>Find the gist fast.</strong>
+          <p>
+            A 200-page annual report or a dense earnings transcript should not require a
+            half hour of page-jumping before the user understands what changed.
+          </p>
+          <div class="quote">
+            Wants the summary, the shift in management tone, and the red flags in under
+            two minutes.
+          </div>
+        </article>
+
+        <article class="card persona">
+          <small>Consultant / wealth manager</small>
+          <strong>Assemble a client-ready dossier.</strong>
+          <p>
+            The pain is not analysis alone. It is the manual stitching together of filings,
+            screenshots, transcripts, and comparison notes into something presentable.
+          </p>
+          <div class="quote">
+            Wants a branded, auditable report that can be used in a client call the same day.
+          </div>
+        </article>
+
+        <article class="card persona">
+          <small>Agency operator</small>
+          <strong>Protect exclusivity by design.</strong>
+          <p>
+            Client research must stay isolated. Shared caches are useful, but not when they
+            compromise the promise of white-label delivery.
+          </p>
+          <div class="quote">
+            Wants structural separation, not just a policy promise.
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section class="section" id="product">
+      <div class="section-head">
+        <div class="kicker">Product</div>
+        <h2>Three tiers, one architecture.</h2>
+        <p class="section-lead">
+          The system supports retail, B2B SaaS, and agency workflows in parallel. The
+          frontend changes tone by tier, but the upstream model stays the same: resolve,
+          ingest, reason, verify, export.
+        </p>
+      </div>
+
+      <div class="grid-3">
+        <article class="card">
+          <h3>Retail tier</h3>
+          <p>
+            A freemium summary flow for investors. Paste a ticker or company name, then
+            get a concise readout with sentiment shift, red flags, and citations.
+          </p>
+          <div class="tagrow">
+            <span class="tag">streaming</span>
+            <span class="tag">watchlists</span>
+            <span class="tag">mobile later</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3>B2B SaaS tier</h3>
+          <p>
+            A desktop dashboard for consultants, advisors, and wealth managers. It runs a
+            deeper dossier, tracks quotas, and keeps exports in one branded place.
+          </p>
+          <div class="tagrow">
+            <span class="tag">job mode</span>
+            <span class="tag">pdf export</span>
+            <span class="tag">team usage</span>
+          </div>
+        </article>
+
+        <article class="card">
+          <h3>Agency tier</h3>
+          <p>
+            A project-scoped workbench for client research. White-label branding and cache
+            bypass are structural, so exclusivity is enforced by the system itself.
+          </p>
+          <div class="tagrow">
+            <span class="tag">project scoped</span>
+            <span class="tag">cache bypass</span>
+            <span class="tag">audit trail</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section class="section" id="workflow">
+      <div class="section-head">
+        <div class="kicker">Workflow</div>
+        <h2>The page should feel like a system, not a brochure.</h2>
+        <p class="section-lead">
+          A good one-page website can still show operational depth. Here the sections
+          reveal the actual execution order so the product reads like a real tool.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        <article class="panel">
+          <h3>Execution path</h3>
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-index">1</div>
+              <div>
+                <strong>Company resolution</strong>
+                <span>Normalize free text to one canonical company_id. Never trust a client-supplied org_id.</span>
+              </div>
+              <em>lookup</em>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-index">2</div>
+              <div>
+                <strong>Source ingestion</strong>
+                <span>Fetch BSE/NSE filings and earnings transcripts. Reuse long-lived raw documents through Layer 1.</span>
+              </div>
+              <em>ingest</em>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-index">3</div>
+              <div>
+                <strong>Agent reasoning</strong>
+                <span>Claude Managed Agents output structured JSON through a typed final tool call.</span>
+              </div>
+              <em>compose</em>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-index">4</div>
+              <div>
+                <strong>Report export</strong>
+                <span>The Composer validates source hashes, citations, and quotes before the report becomes immutable.</span>
+              </div>
+              <em>export</em>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h3>Execution modes</h3>
+          <div class="mini-list">
+            <div class="mini-row">
+              <div>
+                <strong>Streaming</strong>
+                <span>Retail summaries stream into the UI for immediate feedback.</span>
+              </div>
+              <em>&lt; 30s</em>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>Job mode</strong>
+                <span>Deep dossiers and agency reports return a job id and continue in the background.</span>
+              </div>
+              <em>1-5m</em>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>Realtime updates</strong>
+                <span>Supabase Realtime keeps progress visible while the job runner polls the agent session.</span>
+              </div>
+              <em>live</em>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>Immutable output</strong>
+                <span>Layer 3 reports never mutate after composition. Re-runs create new records.</span>
+              </div>
+              <em>audit-safe</em>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section class="section" id="trust">
+      <div class="section-head">
+        <div class="kicker">Trust layer</div>
+        <h2>Every claim should point back to a source document.</h2>
+        <p class="section-lead">
+          The UI should not hide provenance. It should surface citations, source hashes,
+          and verification state so the output can be defended in a client call or audit.
+        </p>
+      </div>
+
+      <div class="codegrid">
+        <pre><code>report = {
+  executive_summary,
+  key_takeaways,
+  red_flags,
+  sections: [
+    {
+      heading,
+      claims: [
+        {
+          claim_id,
+          text,
+          citations: [
+            {
+              source_document_id,
+              locator: { type, page | start_sec | selector },
+              quote
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  source_documents_used
+}</code></pre>
+
+        <div class="panel">
+          <h3>What the interface promises</h3>
+          <div class="mini-list">
+            <div class="mini-row">
+              <div>
+                <strong>Personal org by default</strong>
+                <span>Every user gets one org at signup. All data belongs to exactly one org.</span>
+              </div>
+              <em>rls</em>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>Active-org membership check</strong>
+                <span>The session’s active org is verified against live membership on every query.</span>
+              </div>
+              <em>auth</em>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>Agency cache bypass</strong>
+                <span>Project-scoped reports skip shared compositions, protecting client exclusivity.</span>
+              </div>
+              <em>privacy</em>
+            </div>
+            <div class="mini-row">
+              <div>
+                <strong>Soft-verified quotes</strong>
+                <span>Quote mismatches are flagged for review rather than silently buried.</span>
+              </div>
+              <em>citation</em>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-rule">
+
+    <section class="section" id="schema">
+      <div class="section-head">
+        <div class="kicker">System snapshot</div>
+        <h2>A compact data model, written for auditability.</h2>
+        <p class="section-lead">
+          The product is intentionally lean: one company resolver, one source cache, one
+          composition layer, and one immutable report layer.
+        </p>
+      </div>
+
+      <div class="grid-3">
+        <article class="card">
+          <h3>Canonical company</h3>
+          <p>Companies and securities are separate, so listed entities and private entities can share the same model.</p>
+          <div class="tagrow">
+            <span class="tag">companies</span>
+            <span class="tag">securities</span>
+            <span class="tag">is_primary</span>
+          </div>
+        </article>
+        <article class="card">
+          <h3>Source documents</h3>
+          <p>Raw scraped documents are global and deduped by source URL and fetch window.</p>
+          <div class="tagrow">
+            <span class="tag">layer 1</span>
+            <span class="tag">cached</span>
+            <span class="tag">global</span>
+          </div>
+        </article>
+        <article class="card">
+          <h3>Reports and jobs</h3>
+          <p>Compositions are cached where safe, and reports remain immutable with a job trail and audit record.</p>
+          <div class="tagrow">
+            <span class="tag">layer 2</span>
+            <span class="tag">layer 3</span>
+            <span class="tag">append-only</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="cta" id="cta">
+      <div>
+        <div class="eyebrow">Launch direction</div>
+        <h2>One page, one story, one system.</h2>
+        <p>
+          If you want, the next pass can lean harder into either the research tool vibe or
+          the investor-facing marketing vibe. This version keeps the website read clean and
+          continuous while staying faithful to the PRD.
+        </p>
+      </div>
+      <div class="actions">
+        <a class="btn primary" href="#top" onclick="window.scrollTo({top: 0, behavior: 'smooth'}); return false;">Back to top</a>
+        <a class="btn" href="#trust">Review trust model</a>
+      </div>
+    </section>
+
+    <footer>
+      <span>Diligence OS website concept based on the PRD for Financial Intelligence & Due Diligence OS (India).</span>
+      <span>Modern minimal · tech utility · one continuous scroll.</span>
+    </footer>
+  </main>
+</body>
+</html>
