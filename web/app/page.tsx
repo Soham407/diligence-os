@@ -1,18 +1,37 @@
+import { AgencyDashboard } from "./agency-dashboard";
 import { AuthPanel } from "./auth-panel";
 import { ReportPanel } from "./report-panel";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 
-export default async function Home() {
+type SearchParams = {
+  projectId?: string;
+};
+
+export default async function Home({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>;
+}) {
+  const params = (await searchParams) ?? {};
   const supabase = await createSupabaseServerClient();
   const {
     data: { user }
   } = await supabase.auth.getUser();
-  const memberships: Array<{
+
+  const authMemberships: Array<{
     orgId: string;
     role: string;
     orgName: string;
     orgType: string;
   }> = [];
+
+  const organizations: Array<{
+    id: string;
+    name: string;
+    org_type: string;
+    plan: string;
+  }> = [];
+
   let activeOrgId: string | null = null;
 
   if (user) {
@@ -24,7 +43,7 @@ export default async function Home() {
         .maybeSingle(),
       supabase
         .from("org_members")
-        .select("org_id, role, organizations(name, org_type)")
+        .select("org_id, role, organizations(id,name,org_type,plan)")
         .eq("user_id", user.id)
     ]);
 
@@ -34,11 +53,18 @@ export default async function Home() {
         continue;
       }
 
-      memberships.push({
+      authMemberships.push({
         orgId: row.org_id,
         role: row.role,
         orgName: orgRecord.name,
         orgType: orgRecord.org_type
+      });
+
+      organizations.push({
+        id: orgRecord.id,
+        name: orgRecord.name,
+        org_type: orgRecord.org_type,
+        plan: orgRecord.plan
       });
     }
 
@@ -47,22 +73,73 @@ export default async function Home() {
     activeOrgId = claimedActiveOrgId ?? profile?.last_active_org_id ?? profile?.personal_org_id ?? null;
   }
 
+  if (!user?.email) {
+    return (
+      <main className="min-h-screen bg-slate-950 px-6 py-20 text-slate-100">
+        <section className="mx-auto max-w-3xl space-y-6">
+          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Diligence OS</p>
+          <h1 className="text-4xl font-semibold leading-tight md:text-5xl">Agency Tier Baseline</h1>
+          <p className="text-lg text-slate-300">Sign in to create orgs, projects, and lead-intel reports.</p>
+          <AuthPanel memberships={[]} userEmail={null} userId={null} activeOrgId={null} />
+        </section>
+      </main>
+    );
+  }
+
+  const activeOrg = organizations.find((organization) => organization.id === activeOrgId) ?? null;
+
+  let projects: Array<{ id: string; client_name: string; client_slug: string; created_at: string }> = [];
+  let reports: Array<{
+    id: string;
+    report_type: string;
+    project_id: string | null;
+    status: string;
+    created_at: string;
+  }> = [];
+
+  if (activeOrg?.org_type === "agency") {
+    const { data: projectRows } = await supabase
+      .from("projects")
+      .select("id, client_name, client_slug, created_at")
+      .eq("org_id", activeOrg.id)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false });
+
+    projects = projectRows ?? [];
+
+    let reportQuery = supabase
+      .from("reports")
+      .select("id, report_type, project_id, status, created_at")
+      .eq("org_id", activeOrg.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (params.projectId) {
+      reportQuery = reportQuery.eq("project_id", params.projectId);
+    }
+
+    const { data: reportRows } = await reportQuery;
+    reports = reportRows ?? [];
+  }
+
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-20 text-slate-100">
-      <section className="mx-auto max-w-3xl space-y-6">
-        <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Diligence OS</p>
-        <h1 className="text-4xl font-semibold leading-tight md:text-5xl">Entitlements + Tier Gating</h1>
-        <p className="text-lg text-slate-300">
-          Server-side entitlement checks gate report endpoints. Client-side state mirrors `/me` for UX-only
-          upsell.
-        </p>
+    <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
+      <section className="mx-auto max-w-5xl space-y-6">
         <AuthPanel
-          memberships={memberships}
-          userEmail={user?.email ?? null}
-          userId={user?.id ?? null}
+          memberships={authMemberships}
+          userEmail={user.email}
+          userId={user.id}
           activeOrgId={activeOrgId}
         />
-        {user ? <ReportPanel /> : null}
+        <AgencyDashboard
+          activeOrg={activeOrg}
+          organizations={organizations}
+          projects={projects}
+          reports={reports}
+          selectedProjectId={params.projectId ?? null}
+          userEmail={user.email}
+        />
+        <ReportPanel />
       </section>
     </main>
   );
