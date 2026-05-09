@@ -8,6 +8,6 @@
     "start": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest start --workdir \"$ROOT/supabase\"'",
     "stop": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest stop --workdir \"$ROOT/supabase\"'",
     "typecheck": "echo 'No TypeScript sources yet in supabase package'",
-    "test": "echo 'No tests yet for supabase'"
+    "test": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest test db --workdir \"$ROOT/supabase\"'"
   }
 }

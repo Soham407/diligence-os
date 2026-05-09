@@ -10,6 +10,8 @@
     "test": "echo 'No tests yet for web'"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.105.4",
     "next": "15.3.2",
     "react": "19.1.0",
     "react-dom": "19.1.0"

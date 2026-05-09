@@ -22,6 +22,10 @@ Create a `.env` at repo root with:
 ```bash
 SUPABASE_PROJECT_REF=your-project-ref
 SUPABASE_ACCESS_TOKEN=your-personal-access-token
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=your-google-client-id
+SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=your-google-client-secret
 ```
 
 ## Local development
@@ -61,6 +65,14 @@ corepack pnpm --filter supabase link
 ```bash
 corepack pnpm --filter supabase start
 ```
+
+7. Test auth flow on web:
+
+```bash
+corepack pnpm --filter web dev
+```
+
+Open `http://localhost:3000` and use email magic link or Google OAuth sign-in.
 
 ## Notes
 
