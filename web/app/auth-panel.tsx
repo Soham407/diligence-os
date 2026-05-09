@@ -2,17 +2,28 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { getSupabaseBrowserClient } from "../lib/supabase/browser";
+import { getSupabaseEnv } from "../lib/supabase/env";
 
 type AuthPanelProps = {
   userEmail: string | null;
+  userId: string | null;
+  activeOrgId: string | null;
+  memberships: Array<{
+    orgId: string;
+    orgName: string;
+    orgType: string;
+    role: string;
+  }>;
 };
 
-export function AuthPanel({ userEmail }: AuthPanelProps) {
+export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthPanelProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const { supabaseUrl, supabaseAnonKey } = useMemo(() => getSupabaseEnv(), []);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedOrgId, setSelectedOrgId] = useState(activeOrgId ?? "");
 
   async function onMagicLinkSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,12 +78,84 @@ export function AuthPanel({ userEmail }: AuthPanelProps) {
     window.location.reload();
   }
 
+  async function onSwitchOrg(nextOrgId: string) {
+    if (!userId || !nextOrgId || nextOrgId === selectedOrgId) {
+      return;
+    }
+
+    setBusy(true);
+    setStatus(null);
+    setError(null);
+
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      setBusy(false);
+      setError("No active session available for org switch.");
+      return;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/orgs/switch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: supabaseAnonKey
+      },
+      body: JSON.stringify({ org_id: nextOrgId })
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string };
+      setBusy(false);
+      setError(body.error ?? "Failed to switch org.");
+      return;
+    }
+
+    const { error: refreshError } = await supabase.auth.refreshSession();
+    setBusy(false);
+
+    if (refreshError) {
+      setError(refreshError.message);
+      return;
+    }
+
+    setSelectedOrgId(nextOrgId);
+    setStatus("Active organization switched.");
+    window.location.reload();
+  }
+
   return (
     <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
       <h2 className="text-2xl font-semibold">Authentication</h2>
       {userEmail ? (
         <div className="space-y-4">
           <p className="text-sm text-slate-300">Signed in as {userEmail}</p>
+          <label className="block text-sm text-slate-300" htmlFor="active-org">
+            Active organization
+          </label>
+          <select
+            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
+            disabled={busy || memberships.length === 0}
+            id="active-org"
+            onChange={(event) => {
+              void onSwitchOrg(event.target.value);
+            }}
+            value={selectedOrgId}
+          >
+            {selectedOrgId === "" ? (
+              <option disabled value="">
+                Select an organization
+              </option>
+            ) : null}
+            {memberships.map((membership) => (
+              <option key={membership.orgId} value={membership.orgId}>
+                {membership.orgName} ({membership.orgType}, {membership.role})
+              </option>
+            ))}
+          </select>
           <button
             className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
             disabled={busy}
