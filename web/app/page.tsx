@@ -56,7 +56,6 @@ export default async function Home() {
           Server-side entitlement checks gate report endpoints. Client-side state mirrors `/me` for UX-only
           upsell.
         </p>
-<<<<<<< HEAD
         <AuthPanel
           memberships={memberships}
           userEmail={user?.email ?? null}
