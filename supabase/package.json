@@ -3,10 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "init": "bash -lc 'set -euo pipefail; cd \"$(dirname \"$npm_package_json\")\"; npx supabase@latest init'",
-    "link": "bash -lc 'set -euo pipefail; cd \"$(dirname \"$npm_package_json\")\"; : \"${SUPABASE_PROJECT_REF:?SUPABASE_PROJECT_REF is required}\"; : \"${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN is required}\"; npx supabase@latest link --project-ref \"$SUPABASE_PROJECT_REF\" --token \"$SUPABASE_ACCESS_TOKEN\"'",
-    "start": "bash -lc 'set -euo pipefail; cd \"$(dirname \"$npm_package_json\")\"; npx supabase@latest start'",
-    "stop": "bash -lc 'set -euo pipefail; cd \"$(dirname \"$npm_package_json\")\"; npx supabase@latest stop'",
+    "init": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest init --workdir \"$ROOT/supabase\"'",
+    "link": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; : \"${SUPABASE_PROJECT_REF:?SUPABASE_PROJECT_REF is required}\"; : \"${SUPABASE_ACCESS_TOKEN:?SUPABASE_ACCESS_TOKEN is required}\"; npx supabase@latest link --workdir \"$ROOT/supabase\" --project-ref \"$SUPABASE_PROJECT_REF\" --token \"$SUPABASE_ACCESS_TOKEN\"'",
+    "start": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest start --workdir \"$ROOT/supabase\"'",
+    "stop": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest stop --workdir \"$ROOT/supabase\"'",
     "typecheck": "echo 'No TypeScript sources yet in supabase package'",
     "test": "echo 'No tests yet for supabase'"
   }
