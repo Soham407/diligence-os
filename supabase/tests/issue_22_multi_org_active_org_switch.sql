@@ -54,6 +54,9 @@ begin
   insert into public.org_members (org_id, user_id, role)
   values (second_org_id, test_user_id, 'admin');
 
+  insert into public.organizations (id, name, org_type, plan)
+  values (outsider_org_id, 'Issue 22 Outsider Org', 'b2b', 'b2b_basic');
+
   insert into public.org_private_notes (org_id, note)
   values (personal_org_id_value, 'personal-note'), (second_org_id, 'work-note');
 
@@ -91,6 +94,23 @@ begin
     raise exception 'expected hook fallback active_org_id to personal_org_id %, got %', personal_org_id_value, active_org_claim;
   end if;
 
+  update public.user_profiles
+  set last_active_org_id = outsider_org_id
+  where user_id = test_user_id;
+
+  hook_response := public.custom_access_token_hook(
+    jsonb_build_object(
+      'user_id', test_user_id::text,
+      'claims', jsonb_build_object('app_metadata', '{}'::jsonb)
+    )
+  );
+
+  active_org_claim := hook_response -> 'claims' -> 'app_metadata' ->> 'active_org_id';
+
+  if active_org_claim is null or active_org_claim::uuid is distinct from personal_org_id_value then
+    raise exception 'expected hook to ignore non-member last_active_org_id and fallback to personal_org_id %, got %', personal_org_id_value, active_org_claim;
+  end if;
+
   execute 'set local role authenticated';
   perform set_config('request.jwt.claim.sub', test_user_id::text, true);
   perform set_config(
@@ -112,9 +132,6 @@ begin
   if metadata_active_org is null or metadata_active_org::uuid is distinct from second_org_id then
     raise exception 'expected auth.users raw_app_meta_data.active_org_id to be % got %', second_org_id, metadata_active_org;
   end if;
-
-  insert into public.organizations (id, name, org_type, plan)
-  values (outsider_org_id, 'Issue 22 Outsider Org', 'b2b', 'b2b_basic');
 
   begin
     perform public.set_active_org(outsider_org_id);

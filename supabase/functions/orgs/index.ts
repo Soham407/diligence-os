@@ -26,7 +26,9 @@ Deno.serve(async (request) => {
   }
 
   const url = new URL(request.url);
-  if (request.method !== "POST" || url.pathname !== "/orgs/switch") {
+  const pathname = url.pathname.replace(/\/+$/, "");
+  const isSwitchRoute = pathname === "/orgs/switch" || pathname === "/switch";
+  if (request.method !== "POST" || !isSwitchRoute) {
     return jsonResponse({ error: "not_found" }, 404);
   }
 
