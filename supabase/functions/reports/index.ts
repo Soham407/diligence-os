@@ -296,6 +296,10 @@ Deno.serve(async (request) => {
     const agentRun = await runAgent({
       type: "earnings_summary",
       sessionMode: "stream",
+      cache: {
+        client: serviceClient,
+        sourceDocSetHash
+      },
       context: {
         companyId: companyRow.id,
         sourceDocumentIds: sortedSourceIds,
@@ -340,13 +344,42 @@ Deno.serve(async (request) => {
 
         await logCitationVerificationFailures(composed.verificationFailures);
 
+        let compositionId = agentRun.cache.compositionId;
+        if (compositionId && composed.attemptCount > 1) {
+          compositionId = null;
+        }
+
+        if (!bypassCache && !compositionId) {
+          const { data: insertedComposition, error: compositionError } = await serviceClient
+            .from("compositions")
+            .upsert(
+              {
+                company_id: companyRow.id,
+                report_type: body.report_type,
+                source_doc_set_hash: sourceDocSetHash,
+                agent_version: agentRun.agentVersion,
+                payload: composed.payload,
+                expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+              },
+              { onConflict: "company_id,report_type,source_doc_set_hash,agent_version" }
+            )
+            .select("id")
+            .single();
+
+          if (compositionError || !insertedComposition) {
+            throw new Error(compositionError?.message ?? "Failed to persist composition");
+          }
+
+          compositionId = insertedComposition.id;
+        }
+
         const createdReport = await persistReportWithCitations({
           serviceClient,
           orgId: activeOrgId,
           projectId,
           companyId: companyRow.id,
           reportType: body.report_type as ReportType,
-          compositionId: null,
+          compositionId,
           sourceDocSetHash,
           agentVersion: agentRun.agentVersion,
           payload: composed.payload as Record<string, unknown>,
@@ -358,7 +391,7 @@ Deno.serve(async (request) => {
           org_id: activeOrgId,
           project_id: projectId,
           actor_id: user.id,
-          kind: "agent_run",
+          kind: agentRun.cache.hit ? "composition_cache_hit" : "agent_run",
           payload: {
             report_id: createdReport.id,
             report_type: body.report_type,
@@ -366,6 +399,7 @@ Deno.serve(async (request) => {
             agent_id: agentRun.agentId,
             agent_version: agentRun.agentVersion,
             source_doc_set_hash: sourceDocSetHash,
+            cache_hit: agentRun.cache.hit,
             cache_bypass: bypassCache,
             composer_attempt_count: composed.attemptCount,
             shape_c_fallback_used: composed.usedShapeCFallback,
@@ -407,37 +441,21 @@ Deno.serve(async (request) => {
   let compositionId: string | null = null;
   let agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
   let primaryAgentRun: LegacyAgentRunResult | null = null;
-
-  if (!bypassCache) {
-    const { data: existingComposition } = await serviceClient
-      .from("compositions")
-      .select("id, payload, agent_version")
-      .eq("company_id", companyRow.id)
-      .eq("report_type", body.report_type)
-      .eq("source_doc_set_hash", sourceDocSetHash)
-      .eq("agent_version", agentVersion)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-
-    if (existingComposition) {
-      rawPayload = existingComposition.payload as Record<string, unknown>;
-      compositionId = existingComposition.id;
-      agentVersion = existingComposition.agent_version;
+  primaryAgentRun = await runReportAgent({
+    reportType: body.report_type,
+    companyId: companyRow.id,
+    sourceDocumentIds: sortedSourceIds,
+    customSources,
+    projectId,
+    cache: {
+      client: serviceClient,
+      sourceDocSetHash
     }
-  }
+  });
 
-  if (!rawPayload) {
-    primaryAgentRun = await runReportAgent({
-      reportType: body.report_type,
-      companyId: companyRow.id,
-      sourceDocumentIds: sortedSourceIds,
-      customSources,
-      projectId
-    });
-
-    rawPayload = primaryAgentRun.payload;
-    agentVersion = primaryAgentRun.agentVersion;
-  }
+  rawPayload = primaryAgentRun.payload;
+  compositionId = primaryAgentRun.cache.compositionId;
+  agentVersion = primaryAgentRun.agentVersion;
 
   const composed = await composeWithRecovery({
     composer,
@@ -450,6 +468,10 @@ Deno.serve(async (request) => {
         sourceDocumentIds: sortedSourceIds,
         customSources,
         projectId,
+        cache: {
+          client: serviceClient,
+          sourceDocSetHash
+        },
         recoveryMode: "strict_retry"
       });
       return retryRun.payload;
@@ -478,13 +500,14 @@ Deno.serve(async (request) => {
       org_id: activeOrgId,
       project_id: projectId,
       actor_id: user.id,
-      kind: "agent_run",
+      kind: primaryAgentRun.cache.hit ? "composition_cache_hit" : "agent_run",
       payload: {
         report_type: body.report_type,
         tool_name: primaryAgentRun.toolName,
         agent_id: primaryAgentRun.agentId,
         agent_version: primaryAgentRun.agentVersion,
         source_doc_set_hash: sourceDocSetHash,
+        cache_hit: primaryAgentRun.cache.hit,
         cache_bypass: bypassCache,
         composer_attempt_count: composed.attemptCount,
         shape_c_fallback_used: composed.usedShapeCFallback

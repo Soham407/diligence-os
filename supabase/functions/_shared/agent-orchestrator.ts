@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+
 export type ReportType = "earnings_summary" | "due_diligence" | "lead_intel";
 
 const TOOL_BY_REPORT_TYPE: Record<ReportType, string> = {
@@ -26,6 +28,11 @@ export type AgentRunInput = {
   context: AgentContext;
   sessionMode: "stream" | "sync";
   recoveryMode?: AgentRecoveryMode;
+  cache?: {
+    client: Pick<SupabaseClient, "from">;
+    sourceDocSetHash?: string;
+    nowIso?: string;
+  };
 };
 
 export type AgentUsage = {
@@ -49,7 +56,59 @@ type BaseRunResult = {
   toolName: string;
   agentId: string;
   agentVersion: string;
+  cache: CompositionCacheMeta;
 };
+
+type CompositionCacheRow = {
+  id: string;
+  payload: Record<string, unknown>;
+  agent_version: string;
+};
+
+export type CompositionCacheMeta = {
+  bypassed: boolean;
+  hit: boolean;
+  compositionId: string | null;
+  sourceDocSetHash: string;
+};
+
+export async function computeSourceDocSetHash(sourceDocumentIds: string[]): Promise<string> {
+  const sortedSourceIds = sourceDocumentIds.slice().sort();
+  const bytes = new TextEncoder().encode(JSON.stringify(sortedSourceIds));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function findActiveComposition(input: {
+  client: Pick<SupabaseClient, "from">;
+  companyId: string;
+  reportType: ReportType;
+  sourceDocSetHash: string;
+  agentVersion: string;
+  nowIso: string;
+}): Promise<CompositionCacheRow | null> {
+  const { data, error } = await input.client
+    .from("compositions")
+    .select("id, payload, agent_version")
+    .eq("company_id", input.companyId)
+    .eq("report_type", input.reportType)
+    .eq("source_doc_set_hash", input.sourceDocSetHash)
+    .eq("agent_version", input.agentVersion)
+    .gt("expires_at", input.nowIso)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to read compositions cache: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data as CompositionCacheRow;
+}
 
 export type StreamRunResult = BaseRunResult & {
   mode: "stream";
@@ -659,9 +718,69 @@ function createMockStreamResult(
 export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const toolName = TOOL_BY_REPORT_TYPE[input.type];
   const agentId = Deno.env.get(AGENT_ENV_BY_REPORT_TYPE[input.type]) ?? "local-agent";
-  const agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
+  let agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
   const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
   const startedAtMs = Date.now();
+
+  const sourceDocSetHash =
+    input.cache?.sourceDocSetHash ?? (await computeSourceDocSetHash(input.context.sourceDocumentIds));
+  const cache: CompositionCacheMeta = {
+    bypassed: input.context.projectId !== null,
+    hit: false,
+    compositionId: null,
+    sourceDocSetHash
+  };
+
+  const canReadCache = input.cache?.client && !cache.bypassed && (input.recoveryMode ?? "default") === "default";
+  let cachedPayload: Record<string, unknown> | null = null;
+  if (canReadCache) {
+    const activeComposition = await findActiveComposition({
+      client: input.cache.client,
+      companyId: input.context.companyId,
+      reportType: input.type,
+      sourceDocSetHash,
+      agentVersion,
+      nowIso: input.cache.nowIso ?? new Date().toISOString()
+    });
+
+    if (activeComposition) {
+      cache.hit = true;
+      cache.compositionId = activeComposition.id;
+      agentVersion = activeComposition.agent_version;
+      cachedPayload = activeComposition.payload;
+    }
+  }
+
+  if (cachedPayload) {
+    const completion = Promise.resolve({
+      payload: cachedPayload,
+      usage: { inputTokens: null, outputTokens: null },
+      durationMs: 0,
+      cost: null
+    });
+
+    if (input.sessionMode === "stream") {
+      const stream = createSseStream(buildMockSse(toolName, cachedPayload));
+      return {
+        mode: "stream",
+        stream,
+        completion,
+        toolName,
+        agentId,
+        agentVersion,
+        cache
+      };
+    }
+
+    return {
+      mode: "sync",
+      completion,
+      toolName,
+      agentId,
+      agentVersion,
+      cache
+    };
+  }
 
   if (input.sessionMode === "stream") {
     const streamResult = anthropicApiKey
@@ -674,7 +793,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       completion: streamResult.completion,
       toolName,
       agentId,
-      agentVersion
+      agentVersion,
+      cache
     };
   }
 
@@ -696,7 +816,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     }),
     toolName,
     agentId,
-    agentVersion
+    agentVersion,
+    cache
   };
 }
 
@@ -796,6 +917,7 @@ export type LegacyAgentRunInput = {
   customSources: string[];
   projectId: string | null;
   recoveryMode?: AgentRecoveryMode;
+  cache?: AgentRunInput["cache"];
 };
 
 export type LegacyAgentRunResult = {
@@ -803,12 +925,14 @@ export type LegacyAgentRunResult = {
   toolName: string;
   agentId: string;
   agentVersion: string;
+  cache: CompositionCacheMeta;
 };
 
 export async function runReportAgent(input: LegacyAgentRunInput): Promise<LegacyAgentRunResult> {
   const run = await runAgent({
     type: input.reportType,
     sessionMode: "sync",
+    cache: input.cache,
     recoveryMode: input.recoveryMode ?? "default",
     context: {
       companyId: input.companyId,
@@ -824,7 +948,8 @@ export async function runReportAgent(input: LegacyAgentRunInput): Promise<Legacy
     payload: completion.payload,
     toolName: run.toolName,
     agentId: run.agentId,
-    agentVersion: run.agentVersion
+    agentVersion: run.agentVersion,
+    cache: run.cache
   };
 }
 
@@ -862,6 +987,12 @@ export async function runReportAgentShapeC(
     payload,
     toolName: TOOL_BY_REPORT_TYPE[input.reportType],
     agentId,
-    agentVersion
+    agentVersion,
+    cache: {
+      bypassed: input.projectId !== null,
+      hit: false,
+      compositionId: null,
+      sourceDocSetHash: await computeSourceDocSetHash(input.sourceDocumentIds)
+    }
   };
 }
