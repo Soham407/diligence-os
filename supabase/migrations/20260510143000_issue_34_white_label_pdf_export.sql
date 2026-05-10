@@ -18,7 +18,7 @@ declare
   logo_url text;
   disclaimers jsonb := '[]'::jsonb;
   show_platform_branding boolean := true;
-  project_has_branding boolean := false;
+  project_selected boolean := false;
   org_has_branding boolean := false;
 begin
   select
@@ -43,14 +43,7 @@ begin
   project_config := coalesce(report_row.project_white_label_config, '{}'::jsonb);
   org_config := coalesce(report_row.org_white_label_config, '{}'::jsonb);
 
-  project_has_branding := report_row.project_id is not null and (
-    nullif(project_config ->> 'brand_name', '') is not null
-    or nullif(project_config ->> 'logo_url', '') is not null
-    or nullif(project_config ->> 'logo', '') is not null
-    or nullif(project_config ->> 'disclaimer', '') is not null
-    or (jsonb_typeof(project_config -> 'disclaimers') = 'array' and jsonb_array_length(project_config -> 'disclaimers') > 0)
-    or nullif(report_row.client_name, '') is not null
-  );
+  project_selected := report_row.project_id is not null;
 
   org_has_branding := (
     nullif(org_config ->> 'brand_name', '') is not null
@@ -60,7 +53,7 @@ begin
     or (jsonb_typeof(org_config -> 'disclaimers') = 'array' and jsonb_array_length(org_config -> 'disclaimers') > 0)
     );
 
-  if project_has_branding then
+  if project_selected then
     source_label := 'project';
   elsif org_has_branding then
     source_label := 'organization';

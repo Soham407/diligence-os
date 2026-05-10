@@ -217,6 +217,34 @@ begin
     raise exception 'expected agency show_platform_branding=false, got %', resolved ->> 'show_platform_branding';
   end if;
 
+  update public.projects
+  set
+    client_name = '',
+    white_label_config = '{}'::jsonb
+  where id = project_id;
+
+  resolved := public.resolve_report_white_label(agency_report_id, platform_defaults);
+
+  if resolved ->> 'source' <> 'project' then
+    raise exception 'expected agency source=project when project_id is set, got %', resolved ->> 'source';
+  end if;
+
+  if resolved ->> 'brand_name' <> 'Issue 34 Agency Brand' then
+    raise exception 'expected agency brand fallback from org when project branding empty, got %', resolved ->> 'brand_name';
+  end if;
+
+  if resolved ->> 'logo_url' <> 'https://agency.example/logo.png' then
+    raise exception 'expected agency logo fallback from org when project branding empty, got %', resolved ->> 'logo_url';
+  end if;
+
+  if (resolved -> 'disclaimers')::jsonb <> '["Agency org disclaimer"]'::jsonb then
+    raise exception 'expected agency disclaimers fallback from org when project branding empty, got %', resolved -> 'disclaimers';
+  end if;
+
+  if coalesce((resolved ->> 'show_platform_branding')::boolean, true) is distinct from false then
+    raise exception 'expected agency show_platform_branding=false with project_id set, got %', resolved ->> 'show_platform_branding';
+  end if;
+
   perform set_config(
     'request.jwt.claims',
     json_build_object('app_metadata', json_build_object('active_org_id', b2b_org_id::text))::text,

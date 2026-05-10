@@ -156,7 +156,7 @@ export function resolveWhiteLabel(report: WhiteLabelReportInput, platformOverrid
   const projectFallbackName = nonEmptyString(report.project?.client_name);
   const orgFallbackName = nonEmptyString(report.organization?.name);
 
-  const projectEligible = report.project_id !== null && (hasWhiteLabelSignals(projectConfig) || projectFallbackName !== null);
+  const projectEligible = report.project_id !== null;
   const orgEligible = hasWhiteLabelSignals(orgConfig);
 
   const source: WhiteLabelSource = projectEligible ? "project" : orgEligible ? "organization" : "platform";
