@@ -7,6 +7,7 @@ declare
   user_other uuid := '00000000-0000-0000-0000-000000000353';
   org_admin uuid;
   org_other uuid;
+  org_b2b uuid;
   project_a uuid;
   can_view boolean := false;
   can_view_cost boolean := false;
@@ -15,6 +16,7 @@ declare
   flagged_rows int;
   operator_rows int;
   operator_cost numeric;
+  operator_b2b_rows int;
 begin
   delete from auth.users where id in (user_admin, user_viewer, user_other);
 
@@ -70,6 +72,14 @@ begin
 
   select personal_org_id into org_admin from public.user_profiles where user_id = user_admin;
   select personal_org_id into org_other from public.user_profiles where user_id = user_other;
+
+  insert into public.organizations (name, org_type, plan)
+  values ('Issue 35 B2B Org', 'b2b', 'b2b_basic')
+  returning id into org_b2b;
+
+  insert into public.org_members (org_id, user_id, role)
+  values (org_b2b, user_admin, 'admin')
+  on conflict (org_id, user_id) do update set role = excluded.role;
 
   insert into public.org_members (org_id, user_id, role)
   values (org_admin, user_viewer, 'viewer')
@@ -135,6 +145,20 @@ begin
         9.0,
         'report_type',
         'earnings_summary'
+      )
+    ),
+    (
+      org_b2b,
+      null,
+      user_admin,
+      'agent_run',
+      jsonb_build_object(
+        'agent_id',
+        'due-diligence-analyst',
+        'cost',
+        4.0,
+        'report_type',
+        'due_diligence'
       )
     );
 
@@ -225,12 +249,21 @@ begin
   into operator_rows, operator_cost
   from public.get_internal_cost_dashboard(30);
 
-  if operator_rows <> 2 then
-    raise exception 'expected 2 grouped operator rows across org types, got %', operator_rows;
+  if operator_rows <> 3 then
+    raise exception 'expected 3 grouped operator rows split by org_type and agent_id, got %', operator_rows;
   end if;
 
-  if operator_cost <> 11.5::numeric then
-    raise exception 'expected grouped operator total cost 11.5, got %', operator_cost;
+  if operator_cost <> 15.5::numeric then
+    raise exception 'expected grouped operator total cost 15.5, got %', operator_cost;
+  end if;
+
+  select count(*)::int
+  into operator_b2b_rows
+  from public.get_internal_cost_dashboard(30)
+  where org_type = 'b2b';
+
+  if operator_b2b_rows <> 1 then
+    raise exception 'expected exactly 1 b2b grouped operator row, got %', operator_b2b_rows;
   end if;
 
   reset role;
