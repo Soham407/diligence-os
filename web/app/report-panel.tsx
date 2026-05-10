@@ -29,7 +29,7 @@ type JobEventRow = {
 
 export function ReportPanel() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const { supabaseUrl, supabaseAnonKey } = useMemo(() => getSupabaseEnv(), []);
+  const supabaseEnv = useMemo(() => getSupabaseEnv(), []);
   const [me, setMe] = useState<MePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -47,13 +47,22 @@ export function ReportPanel() {
   const [dueDiligenceStatus, setDueDiligenceStatus] = useState<string | null>(null);
   const [jobEvents, setJobEvents] = useState<JobEventRow[]>([]);
   const [dueDiligencePayload, setDueDiligencePayload] = useState<Record<string, unknown> | null>(null);
+  const authConfigured = supabase !== null && supabaseEnv !== null;
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     void loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    if (!supabase) {
+      return;
+    }
+
     if (!activeJobId) return;
 
     const channel = supabase
@@ -108,6 +117,12 @@ export function ReportPanel() {
     setLoading(true);
     setError(null);
 
+    if (!supabase || !authConfigured) {
+      setMe(null);
+      setLoading(false);
+      return;
+    }
+
     const { data, error: invokeError } = await supabase.functions.invoke("me", {
       method: "GET"
     });
@@ -123,6 +138,11 @@ export function ReportPanel() {
   }
 
   async function runEarningsSummary() {
+    if (!supabase || !supabaseEnv || !authConfigured) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     const trimmedCompanyId = companyId.trim();
     if (!trimmedCompanyId) {
       setError("Enter a company UUID first.");
@@ -147,6 +167,7 @@ export function ReportPanel() {
       return;
     }
 
+    const { supabaseUrl, supabaseAnonKey } = supabaseEnv;
     const response = await fetch(`${supabaseUrl}/functions/v1/reports`, {
       method: "POST",
       headers: {
@@ -341,6 +362,11 @@ export function ReportPanel() {
   }
 
   async function runDueDiligenceJob() {
+    if (!supabase || !supabaseEnv || !authConfigured) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     const trimmedCompanyId = dueDiligenceCompanyId.trim();
     if (!trimmedCompanyId) {
       setError("Enter a company UUID for due diligence.");
@@ -395,119 +421,155 @@ export function ReportPanel() {
   }
 
   const remaining = me?.quotas_remaining["reports.earnings_summary"] ?? 0;
-  const showUpsell = !loading && remaining <= 0;
+  const showUpsell = authConfigured && !loading && remaining <= 0;
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-      <h2 className="text-2xl font-semibold">Entitlements</h2>
+    <section className="section-card-strong space-y-5">
+      <div>
+        <p className="eyebrow">Report engine</p>
+        <h2 className="section-title">Entitlements & Workflows</h2>
+        <p className="section-subtitle">
+          Check quota, stream earnings summaries, and submit due-diligence jobs.
+        </p>
+      </div>
+      {!authConfigured ? (
+        <p className="status-warn">
+          Supabase auth is not configured, so entitlement checks and report workflows are disabled.
+        </p>
+      ) : null}
 
-      {loading ? <p className="text-sm text-slate-300">Loading entitlements…</p> : null}
+      {loading ? <p className="section-subtitle">Loading entitlements…</p> : null}
 
       {me ? (
-        <div className="space-y-2 text-sm text-slate-300">
-          <p>Tier: {me.tier}</p>
-          <p>Earnings summaries remaining: {remaining}</p>
-          <p>Due diligence enabled: {String(me.feature_flags.due_diligence_enabled ?? false)}</p>
-          <p>Lead intel enabled: {String(me.feature_flags.lead_intel_enabled ?? false)}</p>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="metric-card">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Tier</p>
+            <p className="mt-2 text-lg font-black">{me.tier}</p>
+          </div>
+          <div className="metric-card">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Earnings left</p>
+            <p className="mt-2 text-3xl font-black tracking-[-0.06em]">{remaining}</p>
+          </div>
+          <div className="metric-card">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Due diligence</p>
+            <p className="mt-2 text-lg font-black">
+              {me.feature_flags.due_diligence_enabled ? "Enabled" : "Disabled"}
+            </p>
+          </div>
+          <div className="metric-card">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Lead intel</p>
+            <p className="mt-2 text-lg font-black">
+              {me.feature_flags.lead_intel_enabled ? "Enabled" : "Disabled"}
+            </p>
+          </div>
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <label className="block text-sm text-slate-300" htmlFor="earnings-company-id">
-          Company UUID
-        </label>
-        <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
-          disabled={busy || loading}
-          id="earnings-company-id"
-          onChange={(event) => setCompanyId(event.target.value)}
-          placeholder="Paste listed company UUID"
-          type="text"
-          value={companyId}
-        />
+      <div className="rounded-3xl border border-[var(--line)] bg-white/45 p-4">
+        <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--accent-2)]">
+          Earnings summary stream
+        </p>
+        <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+          <label className="block text-sm font-bold text-[var(--muted)]" htmlFor="earnings-company-id">
+            Company UUID
+            <input
+              className="field mt-2"
+              disabled={busy || loading || !authConfigured}
+              id="earnings-company-id"
+              onChange={(event) => setCompanyId(event.target.value)}
+              placeholder="Paste listed company UUID"
+              type="text"
+              value={companyId}
+            />
+          </label>
+
+          <button
+            className="btn-secondary self-end"
+            disabled={busy || loading || !authConfigured}
+            onClick={runEarningsSummary}
+            type="button"
+          >
+            Run earnings summary
+          </button>
+        </div>
       </div>
 
-      <button
-        className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
-        disabled={busy || loading}
-        onClick={runEarningsSummary}
-        type="button"
-      >
-        Run earnings summary (stream)
-      </button>
-
       {showUpsell ? (
-        <p className="rounded-md border border-amber-400/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+        <p className="status-warn">
           Free-tier quota exhausted. Upgrade to continue running earnings summaries.
         </p>
       ) : null}
 
-      {status ? <p className="text-sm text-emerald-400">{status}</p> : null}
-      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      {status ? <p className="status-success">{status}</p> : null}
+      {error ? <p className="status-error">{error}</p> : null}
 
       {trail.length > 0 ? (
-        <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Streaming trail</p>
-          <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-sm text-slate-200">
+        <div className="space-y-2">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Streaming trail</p>
+          <pre className="code-panel max-h-60 whitespace-pre-wrap text-sm">
             {trail.join("")}
           </pre>
         </div>
       ) : null}
 
       {latestReportId ? (
-        <p className="text-sm text-slate-300">Latest persisted report: {latestReportId}</p>
+        <p className="rounded-2xl border border-[var(--line)] bg-white/50 px-4 py-3 text-sm font-semibold">
+          Latest persisted report: {latestReportId}
+        </p>
       ) : null}
 
       {usage.inputTokens !== null || usage.outputTokens !== null ? (
-        <p className="text-sm text-slate-300">
+        <p className="text-sm font-semibold text-[var(--muted)]">
           Tokens: in {usage.inputTokens ?? "-"} · out {usage.outputTokens ?? "-"}
         </p>
       ) : null}
 
       {finalPayload ? (
-        <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Final payload</p>
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs text-slate-200">
+        <div className="space-y-2">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Final payload</p>
+          <pre className="code-panel whitespace-pre-wrap">
             {JSON.stringify(finalPayload, null, 2)}
           </pre>
         </div>
       ) : null}
 
-      <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
-        <p className="text-sm font-semibold text-slate-100">B2B Due Diligence (job + realtime)</p>
+      <div className="space-y-3 rounded-3xl border border-[var(--line)] bg-white/45 p-4">
+        <p className="text-sm font-black uppercase tracking-[0.14em] text-[var(--accent)]">
+          B2B Due Diligence (job + realtime)
+        </p>
         <input
-          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
-          disabled={dueDiligenceBusy || loading}
+          className="field"
+          disabled={dueDiligenceBusy || loading || !authConfigured}
           onChange={(event) => setDueDiligenceCompanyId(event.target.value)}
           placeholder="Company UUID for due diligence"
           type="text"
           value={dueDiligenceCompanyId}
         />
         <button
-          className="rounded-md border border-slate-500 px-4 py-2 text-sm font-semibold disabled:opacity-60"
-          disabled={dueDiligenceBusy || loading}
+          className="btn-primary"
+          disabled={dueDiligenceBusy || loading || !authConfigured}
           onClick={runDueDiligenceJob}
           type="button"
         >
           Run due diligence (job mode)
         </button>
-        {dueDiligenceStatus ? <p className="text-sm text-emerald-400">{dueDiligenceStatus}</p> : null}
-        {activeJobId ? <p className="text-xs text-slate-400">Active job: {activeJobId}</p> : null}
+        {dueDiligenceStatus ? <p className="status-success">{dueDiligenceStatus}</p> : null}
+        {activeJobId ? <p className="text-xs font-semibold text-[var(--muted)]">Active job: {activeJobId}</p> : null}
         {activeDueDiligenceReportId ? (
-          <p className="text-xs text-slate-400">Report: {activeDueDiligenceReportId}</p>
+          <p className="text-xs font-semibold text-[var(--muted)]">Report: {activeDueDiligenceReportId}</p>
         ) : null}
         {jobEvents.length > 0 ? (
-          <ul className="space-y-2 text-xs text-slate-300">
+          <ul className="space-y-2 text-xs">
             {jobEvents.map((event) => (
-              <li className="rounded border border-slate-800 bg-slate-900/80 px-2 py-1" key={event.id}>
-                <p className="font-mono text-slate-400">{event.created_at}</p>
+              <li className="data-list-item" key={event.id}>
+                <p className="font-mono text-[var(--muted)]">{event.created_at}</p>
                 <p>{event.kind}</p>
               </li>
             ))}
           </ul>
         ) : null}
         {dueDiligencePayload ? (
-          <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs text-slate-200">
+          <pre className="code-panel whitespace-pre-wrap">
             {JSON.stringify(dueDiligencePayload, null, 2)}
           </pre>
         ) : null}

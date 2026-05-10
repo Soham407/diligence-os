@@ -66,7 +66,13 @@ corepack pnpm --filter supabase link
 corepack pnpm --filter supabase start
 ```
 
-7. Test auth flow on web:
+7. Configure Google sign-in:
+
+- Set `SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET` in `.env`
+- Add `http://localhost:54321/auth/v1/callback` to the Google OAuth client redirect URIs
+- Add `http://localhost:3000/auth/callback` to Supabase redirect URLs
+
+8. Test auth flow on web:
 
 ```bash
 corepack pnpm --filter web dev

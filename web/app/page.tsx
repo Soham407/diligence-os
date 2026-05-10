@@ -48,9 +48,12 @@ export default async function Home({
 }) {
   const params = (await searchParams) ?? {};
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user =
+    supabase === null
+      ? null
+      : (
+          await supabase.auth.getUser()
+        ).data.user;
 
   const authMemberships: Array<{
     orgId: string;
@@ -67,15 +70,16 @@ export default async function Home({
   }> = [];
 
   let activeOrgId: string | null = null;
+  const supabaseClient = supabase!;
 
   if (user) {
     const [{ data: profile }, { data: memberRows }] = await Promise.all([
-      supabase
+      supabaseClient
         .from("user_profiles")
         .select("last_active_org_id, personal_org_id")
         .eq("user_id", user.id)
         .maybeSingle(),
-      supabase
+      supabaseClient
         .from("org_members")
         .select("org_id, role, organizations(id,name,org_type,plan)")
         .eq("user_id", user.id)
@@ -107,13 +111,56 @@ export default async function Home({
     activeOrgId = claimedActiveOrgId ?? profile?.last_active_org_id ?? profile?.personal_org_id ?? null;
   }
 
-  if (!user?.email) {
+  if (supabase === null || !user?.email) {
     return (
-      <main className="min-h-screen bg-slate-950 px-6 py-20 text-slate-100">
-        <section className="mx-auto max-w-3xl space-y-6">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Diligence OS</p>
-          <h1 className="text-4xl font-semibold leading-tight md:text-5xl">Agency Tier Baseline</h1>
-          <p className="text-lg text-slate-300">Sign in to create orgs, projects, and lead-intel reports.</p>
+      <main className="app-main">
+        <section className="app-shell max-w-4xl">
+          <div className="topbar">
+            <div className="brand-lockup">
+              <div className="brand-mark">DO</div>
+              <div>
+                <p className="text-sm font-black tracking-[-0.03em]">Diligence OS</p>
+                <p className="text-xs text-[var(--muted)]">Financial intelligence workspace</p>
+              </div>
+            </div>
+            <p className="rounded-full border border-[var(--line)] bg-white/50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-[var(--accent)]">
+              Agency baseline
+            </p>
+          </div>
+
+          <div className="hero-panel">
+            <div className="hero-grid">
+              <div>
+                <p className="eyebrow">Diligence OS</p>
+                <h1 className="hero-title">Research, resolve, and report from one controlled workspace.</h1>
+                <p className="hero-copy">
+                  Sign in to manage organizations, run company intelligence workflows, and generate
+                  audit-ready financial reports.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                <div className="metric-card">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">01</p>
+                  <p className="mt-2 font-black">Resolve companies</p>
+                </div>
+                <div className="metric-card">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">02</p>
+                  <p className="mt-2 font-black">Run reports</p>
+                </div>
+                <div className="metric-card">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">03</p>
+                  <p className="mt-2 font-black">Track audit trail</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          {supabase === null ? (
+            <p className="status-warn">
+              Supabase auth is not configured yet. Add `NEXT_PUBLIC_SUPABASE_URL` and
+              `NEXT_PUBLIC_SUPABASE_ANON_KEY` to `.env` or `.env.local` to enable sign-in and
+              authenticated features.
+            </p>
+          ) : null}
           <AuthPanel memberships={[]} userEmail={null} userId={null} activeOrgId={null} />
         </section>
       </main>
@@ -139,7 +186,7 @@ export default async function Home({
   let costDashboard: CostDashboardRow[] = [];
 
   if (activeOrg?.org_type === "agency") {
-    const { data: projectRows } = await supabase
+    const { data: projectRows } = await supabaseClient
       .from("projects")
       .select("id, client_name, client_slug, created_at")
       .eq("org_id", activeOrg.id)
@@ -148,7 +195,7 @@ export default async function Home({
 
     projects = projectRows ?? [];
 
-    let reportQuery = supabase
+    let reportQuery = supabaseClient
       .from("reports")
       .select("id, report_type, project_id, status, created_at")
       .eq("org_id", activeOrg.id)
@@ -164,7 +211,7 @@ export default async function Home({
   }
 
   if (isActiveOrgAdmin) {
-    const { data: orgAuditRows } = await supabase.rpc("get_org_audit_log", {
+    const { data: orgAuditRows } = await supabaseClient.rpc("get_org_audit_log", {
       p_project_id: null,
       p_limit: 100
     });
@@ -174,7 +221,7 @@ export default async function Home({
     }));
 
     if (activeOrg?.org_type === "agency" && params.projectId) {
-      const { data: projectAuditRows } = await supabase.rpc("get_org_audit_log", {
+      const { data: projectAuditRows } = await supabaseClient.rpc("get_org_audit_log", {
         p_project_id: params.projectId,
         p_limit: 100
       });
@@ -186,7 +233,7 @@ export default async function Home({
   }
 
   if (isPlatformAdmin) {
-    const { data: costRows } = await supabase.rpc("get_internal_cost_dashboard", {
+    const { data: costRows } = await supabaseClient.rpc("get_internal_cost_dashboard", {
       p_days: 30
     });
     costDashboard = ((costRows as CostDashboardRow[] | null) ?? []).map((row) => ({
@@ -197,29 +244,82 @@ export default async function Home({
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
-      <section className="mx-auto max-w-5xl space-y-6">
-        <AuthPanel
-          memberships={authMemberships}
-          userEmail={user.email}
-          userId={user.id}
-          activeOrgId={activeOrgId}
-        />
-        <CompanyResolverPanel />
-        <AgencyDashboard
-          activeOrg={activeOrg}
-          organizations={organizations}
-          projects={projects}
-          reports={reports}
-          selectedProjectId={params.projectId ?? null}
-          activeOrgRole={activeMembership?.role ?? null}
-          isPlatformAdmin={Boolean(isPlatformAdmin)}
-          costDashboard={costDashboard}
-          orgAuditLog={orgAuditLog}
-          projectAuditLog={projectAuditLog}
-          userEmail={user.email}
-        />
-        <ReportPanel />
+    <main className="app-main">
+      <section className="app-shell">
+        <div className="topbar">
+          <div className="brand-lockup">
+            <div className="brand-mark">DO</div>
+            <div>
+              <p className="text-sm font-black tracking-[-0.03em]">Diligence OS</p>
+              <p className="text-xs text-[var(--muted)]">Signed in as {user.email}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+            <span className="rounded-full border border-[var(--line)] bg-white/50 px-3 py-1">
+              {activeOrg?.org_type ?? "No org"}
+            </span>
+            <span className="rounded-full border border-[var(--line)] bg-white/50 px-3 py-1">
+              {activeMembership?.role ?? "Unknown role"}
+            </span>
+          </div>
+        </div>
+
+        <div className="hero-panel">
+          <div className="hero-grid">
+            <div>
+              <p className="eyebrow">Command center</p>
+              <h1 className="hero-title">Agency intelligence without the spreadsheet sprawl.</h1>
+              <p className="hero-copy">
+                Resolve canonical companies, launch report workflows, and watch audit/cost signals from
+                one operational dashboard.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="metric-card">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Projects</p>
+                <p className="mt-2 text-3xl font-black tracking-[-0.06em]">{projects.length}</p>
+              </div>
+              <div className="metric-card">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Reports</p>
+                <p className="mt-2 text-3xl font-black tracking-[-0.06em]">{reports.length}</p>
+              </div>
+              <div className="metric-card">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Review</p>
+                <p className="mt-2 text-3xl font-black tracking-[-0.06em]">
+                  {orgAuditLog.filter((row) => row.flagged_for_review).length}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+          <aside className="space-y-5 xl:sticky xl:top-28 xl:self-start">
+            <AuthPanel
+              memberships={authMemberships}
+              userEmail={user.email}
+              userId={user.id}
+              activeOrgId={activeOrgId}
+            />
+            <CompanyResolverPanel />
+          </aside>
+          <div className="space-y-5">
+            <AgencyDashboard
+              activeOrg={activeOrg}
+              organizations={organizations}
+              projects={projects}
+              reports={reports}
+              selectedProjectId={params.projectId ?? null}
+              activeOrgRole={activeMembership?.role ?? null}
+              isPlatformAdmin={Boolean(isPlatformAdmin)}
+              costDashboard={costDashboard}
+              orgAuditLog={orgAuditLog}
+              projectAuditLog={projectAuditLog}
+              userEmail={user.email}
+            />
+            <ReportPanel />
+          </div>
+        </div>
       </section>
     </main>
   );

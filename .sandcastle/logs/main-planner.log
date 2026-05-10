@@ -229,3 +229,141 @@ Collecting commits
 Collecting commits done (0.0s)
 Reached max iterations (1).
 Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T05:59:28.396Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.7s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~1544 tokens
+Expanding shell expressions done (1.0s)
+Agent started
+<plan>
+{"issues":[{"id":"28","title":"Report Composer + 8-step contract + Vitest suite + report_citations materialization","branch":"sandcastle/issue-28-report-composer-8-step-contract-vitest-suite-report-citations-materialization"},{"id":"36","title":"React Native retail app: search + earnings summary view + watchlist","branch":"sandcastle/issue-36-react-native-retail-app-search-earnings-summary-view-watchlist"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T06:15:14.163Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (1.4s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~876 tokens
+Expanding shell expressions done (1.0s)
+Agent started
+<plan>
+{"issues":[{"id":"29","title":"Layer 2 compositions cache + cache-bypass predicate","branch":"sandcastle/issue-29-layer-2-compositions-cache-cache-bypass-predicate"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T06:26:14.259Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~570 tokens
+Expanding shell expressions done (1.0s)
+Agent started
+<plan>
+{"issues":[{"id":"30","title":"Job Runner + Due Diligence Analyst long-form path","branch":"sandcastle/issue-30-job-runner-due-diligence-analyst-long-form-path"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T06:42:46.093Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~263 tokens
+Expanding shell expressions done (1.4s)
+Agent started
+<plan>
+{"issues":[{"id":"35","title":"Audit query UI + cost-per-tier dashboard","branch":"sandcastle/issue-35-audit-query-ui-cost-per-tier-dashboard"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T07:03:50.976Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~263 tokens
+Expanding shell expressions done (0.9s)
+Agent started
+<plan>
+{"issues":[{"id":"35","title":"Audit query UI + cost-per-tier dashboard","branch":"sandcastle/issue-35-audit-query-ui-cost-per-tier-dashboard"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T07:10:36.121Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~1 tokens
+Expanding shell expressions done (1.2s)
+Agent started
+<plan>
+{"issues":[]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.

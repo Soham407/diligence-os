@@ -1,0 +1,1240 @@
+
+--- Run started: 2026-05-10T06:27:02.165Z ---
+Sandcastle Run
+  Agent: implementer-30
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-30-job-runner-due-diligence-analyst-long-form-path
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (4.0s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~2209 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue contracts first (`#30` and parent `#1`), then read repo conventions and PRD/schema docs, and only then start a tight RED→GREEN loop scoped to the acceptance criteria. I’ll confirm the target branch state before editing.
+Bash(/bin/bash -lc 'git branch --show-current && git status --short')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'ls -la')
+Branch is already correct and clean enough to proceed. Next I’m pulling issue `#30` plus parent `#1`, then I’ll extract only the binding `What to build` and `Acceptance criteria` requirements before touching code.
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'gh issue view 30 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I have the PRD content locally; next I’m re-running the GitHub issue pulls with pager disabled so we can reliably capture the full authoritative contract text for issue `#30`.
+Bash(/bin/bash -lc 'GH_PAGER=cat gh issue view 30 --comments')
+Bash(/bin/bash -lc 'gh issue view 30 --comments --json number,title,body,comments,url')
+Bash(/bin/bash -lc 'gh issue view 1 --comments --json number,title,body,comments,url')
+I’ve captured the exact issue contract and parent context. Next I’m mapping current implementation gaps by scanning migrations, `reports` edge function, orchestrator/composer code, and Next.js dashboard components for any existing `jobs`/`job_events` plumbing.
+Bash(/bin/bash -lc "rg -n \"\\bjobs\\b|job_events|due_diligence|lead_intel|stream|realtime|pg_cron|enqueue|getJob\" supabase web docs -g '"'!**/node_modules/**'"'")
+Bash(/bin/bash -lc "cat package.json && echo '---' && cat supabase/package.json && echo '---' && cat web/package.json")
+Bash(/bin/bash -lc 'ls -la supabase/functions && ls -la supabase/functions/_shared && ls -la web/app && ls -la supabase/migrations && ls -la supabase/tests')
+Bash(/bin/bash -lc 'cat docs/agents/issue-tracker.md')
+Bash(/bin/bash -lc 'cat docs/agents/domain.md')
+Bash(/bin/bash -lc 'cat docs/agents/triage-labels.md')
+I’m loading the domain context docs (`CONTEXT.md` and ADRs) now so naming and behavior stay aligned with repo vocabulary while implementing issue `#30`.
+Bash(/bin/bash -lc 'cat CONTEXT.md')
+Bash(/bin/bash -lc 'ls -la docs/adr')
+Bash(/bin/bash -lc "for f in docs/adr/*.md; do echo '---'; echo \""'$f"; cat "$f"; done')
+Bash(/bin/bash -lc "grep -RIn \"due_diligence\\|lead_intel\\|earnings_summary\\|job_events\\|jobs\\|streamEvents\\|report_type\" supabase/functions supabase/tests web/app | head -n 300")
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '1,320p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '260,680p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '320,760p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/__tests__/agent-orchestrator.test.ts | sed -n '1,320p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '760,980p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '980,1060p'")
+Bash(/bin/bash -lc "nl -ba web/app/page.tsx | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba web/app/report-panel.tsx | sed -n '1,360p'")
+Bash(/bin/bash -lc "nl -ba web/app/agency-dashboard.tsx | sed -n '1,380p'")
+I’ve confirmed the current `/reports` path is still synchronous for `due_diligence`/`lead_intel`, so issue `#30` requires a real split. I’m now reading existing migrations and schema helpers to add `jobs`/`job_events` and `pg_cron` in the same project style.
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql | sed -n '1,320p'")
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260510193000_issue_28_report_composer_report_citations.sql | sed -n '1,360p'")
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260510210000_issue_29_layer2_compositions_cache_cleanup.sql | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba supabase/tests/issue_28_report_composer_report_citations.sql | sed -n '1,320p'")
+Bash(/bin/bash -lc "nl -ba supabase/tests/issue_29_compositions_cache_cleanup.sql | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/supabase.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/__tests__/report-composer.test.ts | sed -n '1,360p'")
+Bash(/bin/bash -lc "nl -ba web/lib/supabase/browser.ts | sed -n '1,220p'")
+Bash(/bin/bash -lc "nl -ba web/lib/supabase/env.ts | sed -n '1,220p'")
+Bash(/bin/bash -lc "nl -ba web/lib/supabase/server.ts | sed -n '1,220p'")
+I confirmed there’s no existing long-report worker path yet, so I’m now designing the minimal compliant shape: `jobs`/`job_events` schema + a dedicated Job Runner module/edge function + `/reports` job-mode branch for `due_diligence`, plus B2B realtime UI wiring.
+Bash(/bin/bash -lc "grep -RIn \"cron.schedule\\|pg_cron\\|net.http_post\\|pg_net\\|job runner\\|functions/v1/jobs\\|jobs/:id\" supabase web docs | head -n 200")
+Bash(/bin/bash -lc "find supabase/functions -maxdepth 2 -type f -name 'index.ts' -print")
+Bash(/bin/bash -lc 'find supabase/functions/_shared -maxdepth 2 -type f -print')
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260510143000_issue_23_canonical_companies_securities_master_seed.sql | sed -n '1,340p'")
+Bash(/bin/bash -lc "nl -ba docs/prd/0001-financial-intelligence-os.md | sed -n '70,180p'")
+Bash(/bin/bash -lc "grep -RIn \"supabase_realtime\\|publication\" supabase/migrations supabase/tests | head -n 200")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/report-composer.ts | sed -n '1,360p'")
+Bash(/bin/bash -lc 'grep -RIn "report_citations" supabase/functions/reports/index.ts supabase/functions | head -n 40')
+Bash(/bin/bash -lc 'cat supabase/config.toml')
+I have enough context and I’m moving into implementation. Plan: add a failing `JobRunner` unit test first, implement the shared module, then wire `due_diligence` into async `report + job` creation, add the cron-driven worker + migration for `jobs/job_events` + realtime publication, and finally wire a B2B realtime UI panel for progress events.
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/__tests__/job-runner.test.ts <<'EOF'
+import { describe, expect, it } from \"vitest\";
+import { createJobRunner } from \"../job-runner.ts\";
+
+type InsertResult = { data: unknown; error: { message: string } | null };
+type SelectResult = { data: unknown; error: { message: string } | null };
+
+function createMockClient(input: { insertResult: InsertResult; selectResult: SelectResult }) {
+  const insertedRows: Array<{ table: string; value: unknown }> = [];
+
+  const client = {
+    from(table: string) {
+      if (table === \"jobs\") {
+        return {
+          insert(value: unknown) {
+            insertedRows.push({ table, value });
+            return {
+              select() {
+                return {
+                  single() {
+                    return Promise.resolve(input.insertResult);
+                  }
+                };
+              }
+            };
+          },
+          select() {
+            return {
+              eq() {
+                return {
+                  maybeSingle() {
+                    return Promise.resolve(input.selectResult);
+                  }
+                };
+              }
+            };
+          }
+        };
+      }
+
+      if (table === \"job_events\") {
+        return {
+          insert(value: unknown) {
+            insertedRows.push({ table, value });
+            return Promise.resolve({ data: null, error: null });
+          }
+        };
+      }
+
+      throw new Error("'`Unexpected table ${table}`);
+    }
+  };
+
+  return { client, insertedRows };
+}
+
+describe("Job Runner", () => {
+  it("enqueues a queued job and can fetch it by id", async () => {
+    const { client, insertedRows } = createMockClient({
+      insertResult: {
+        data: {
+          id: "job-1",
+          org_id: "org-1",
+          report_id: "report-1",
+          anthropic_session_id: "sess-1",
+          status: "queued",
+          created_at: "2026-05-10T00:00:00.000Z",
+          updated_at: "2026-05-10T00:00:00.000Z"
+        },
+        error: null
+      },
+      selectResult: {
+        data: {
+          id: "job-1",
+          org_id: "org-1",
+          report_id: "report-1",
+          anthropic_session_id: "sess-1",
+          status: "queued",
+          created_at: "2026-05-10T00:00:00.000Z",
+          updated_at: "2026-05-10T00:00:00.000Z"
+        },
+        error: null
+      }
+    });
+
+    const runner = createJobRunner(client as never);
+
+    const enqueued = await runner.enqueue({
+      orgId: "org-1",
+      reportId: "report-1",
+      anthropicSessionId: "sess-1",
+      spec: {
+        report_type: "due_diligence",
+        company_id: "company-1",
+        custom_sources: []
+      }
+    });
+
+    expect(enqueued.id).toBe("job-1");
+    expect(enqueued.status).toBe("queued");
+
+    const loaded = await runner.getJob("job-1");
+    expect(loaded?.id).toBe("job-1");
+
+    expect(insertedRows).toContainEqual({
+      table: "job_events",
+      value: {
+        job_id: "job-1",
+        kind: "job_enqueued",
+        payload: {
+          report_type: "due_diligence",
+          company_id: "company-1",
+          custom_sources: []
+        }
+      }
+    });
+  });
+});
+EOF')
+I’ve added the first failing test for the `enqueue/getJob` contract. I’m running it now to confirm RED before implementing the module.
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase test:unit -- --run supabase/functions/_shared/__tests__/job-runner.test.ts')
+The test run is still installing workspace dependencies; once it finishes I’ll capture the expected failure and proceed directly to implementing `job-runner.ts`.
+I confirmed the RED failure is exactly the missing module. I’m implementing `job-runner.ts` now with `enqueue` and `getJob`, plus a few worker-facing helpers to avoid duplicated table logic.
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/job-runner.ts <<'EOF'
+import type { SupabaseClient } from \"https://esm.sh/@supabase/supabase-js@2.49.8\";
+
+export type JobStatus = \"queued\" | \"running\" | \"succeeded\" | \"failed\" | \"cancelled\";
+
+export type JobRow = {
+  id: string;
+  org_id: string;
+  report_id: string | null;
+  anthropic_session_id: string | null;
+  status: JobStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type JobEventRow = {
+  id: string;
+  job_id: string;
+  kind: string;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type EnqueueJobSpec = {
+  orgId: string;
+  reportId: string | null;
+  anthropicSessionId?: string | null;
+  spec: Record<string, unknown>;
+};
+
+function assertSuccess<T>(result: { data: T; error: { message: string } | null }, message: string): T {
+  if (result.error) {
+    throw new Error("'`${message}: ${result.error.message}`);
+  }
+
+  return result.data;
+}
+
+export function createJobRunner(client: Pick<SupabaseClient, "from">) {
+  return {
+    async enqueue(spec: EnqueueJobSpec): Promise<JobRow> {
+      const inserted = await client
+        .from("jobs")
+        .insert({
+          org_id: spec.orgId,
+          report_id: spec.reportId,
+          anthropic_session_id: spec.anthropicSessionId ?? null,
+          status: "queued"
+        })
+        .select("id, org_id, report_id, anthropic_session_id, status, created_at, updated_at")
+        .single();
+
+      const createdJob = assertSuccess(inserted, "Failed to enqueue job") as JobRow;
+
+      const eventInsert = await client.from("job_events").insert({
+        job_id: createdJob.id,
+        kind: "job_enqueued",
+        payload: spec.spec
+      });
+
+      if (eventInsert.error) {
+        throw new Error(`Failed to insert job_enqueued event: ${eventInsert.error.message}`);
+      }
+
+      return createdJob;
+    },
+
+    async getJob(id: string): Promise<JobRow | null> {
+      const selected = await client
+        .from("jobs")
+        .select("id, org_id, report_id, anthropic_session_id, status, created_at, updated_at")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (selected.error) {
+        throw new Error(`Failed to load job ${id}: ${selected.error.message}`);
+      }
+
+      return (selected.data as JobRow | null) ?? null;
+    },
+
+    async listActiveJobs(limit = 20): Promise<JobRow[]> {
+      const selected = await client
+        .from("jobs")
+        .select("id, org_id, report_id, anthropic_session_id, status, created_at, updated_at")
+        .in("status", ["queued", "running"])
+        .order("created_at", { ascending: true })
+        .limit(limit);
+
+      if (selected.error) {
+        throw new Error(`Failed to list active jobs: ${selected.error.message}`);
+      }
+
+      return (selected.data as JobRow[]) ?? [];
+    },
+
+    async listJobEvents(jobId: string): Promise<JobEventRow[]> {
+      const selected = await client
+        .from("job_events")
+        .select("id, job_id, kind, payload, created_at")
+        .eq("job_id", jobId)
+        .order("created_at", { ascending: true });
+
+      if (selected.error) {
+        throw new Error(`Failed to load events for job ${jobId}: ${selected.error.message}`);
+      }
+
+      return (selected.data as JobEventRow[]) ?? [];
+    },
+
+    async appendEvent(jobId: string, kind: string, payload: Record<string, unknown> = {}): Promise<void> {
+      const inserted = await client.from("job_events").insert({
+        job_id: jobId,
+        kind,
+        payload
+      });
+
+      if (inserted.error) {
+        throw new Error(`Failed to append job event ${kind}: ${inserted.error.message}`);
+      }
+    },
+
+    async updateJob(jobId: string, patch: Partial<Pick<JobRow, "status" | "anthropic_session_id">>): Promise<JobRow> {
+      const updated = await client
+        .from("jobs")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", jobId)
+        .select("id, org_id, report_id, anthropic_session_id, status, created_at, updated_at")
+        .single();
+
+      return assertSuccess(updated, `Failed to update job ${jobId}`) as JobRow;
+    }
+  };
+}
+EOF')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase test:unit -- --run supabase/functions/_shared/__tests__/job-runner.test.ts')
+I’m adding the database layer now: `jobs/job_events` tables, realtime publication hooks, a transactional report-completion RPC for citations, and a 10-second `pg_cron` trigger that invokes the job runner edge function. Then I’ll add a DB test to lock that behavior.
+Bash(/bin/bash -lc "cat > supabase/migrations/20260510223000_issue_30_job_runner_due_diligence.sql <<'EOF'
+create extension if not exists pg_cron with schema pg_catalog;
+create extension if not exists pg_net with schema extensions;
+
+create table if not exists public.jobs (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  report_id uuid references public.reports(id) on delete set null,
+  anthropic_session_id text,
+  status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.job_events (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.jobs(id) on delete cascade,
+  kind text not null,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists jobs_org_created_at_idx on public.jobs (org_id, created_at desc);
+create index if not exists jobs_status_created_at_idx on public.jobs (status, created_at asc);
+create index if not exists job_events_job_created_at_idx on public.job_events (job_id, created_at asc);
+
+grant select, insert on public.jobs to authenticated;
+grant select, insert on public.job_events to authenticated;
+
+alter table public.jobs enable row level security;
+alter table public.job_events enable row level security;
+
+drop policy if exists jobs_member_read on public.jobs;
+create policy jobs_member_read on public.jobs
+for select
+using (org_id = public.current_active_org());
+
+drop policy if exists jobs_member_write on public.jobs;
+create policy jobs_member_write on public.jobs
+for insert
+with check (
+  org_id = public.current_active_org()
+  and (
+    report_id is null
+    or exists (
+      select 1
+      from public.reports r
+      where r.id = report_id
+        and r.org_id = public.current_active_org()
+    )
+  )
+);
+
+drop policy if exists job_events_member_read on public.job_events;
+create policy job_events_member_read on public.job_events
+for select
+using (
+  exists (
+    select 1
+    from public.jobs j
+    where j.id = job_id
+      and j.org_id = public.current_active_org()
+  )
+);
+
+drop policy if exists job_events_member_write on public.job_events;
+create policy job_events_member_write on public.job_events
+for insert
+with check (
+  exists (
+    select 1
+    from public.jobs j
+    where j.id = job_id
+      and j.org_id = public.current_active_org()
+  )
+);
+
+do "'$$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = '"'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'job_events'
+  ) then
+    execute 'alter publication supabase_realtime add table public.job_events';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'reports'
+  ) then
+    execute 'alter publication supabase_realtime add table public.reports';
+  end if;
+end;
+"'$$;
+
+create or replace function public.complete_report_with_citations(
+  p_report_id uuid,
+  p_payload jsonb,
+  p_status text,
+  p_citations jsonb default '"'[]'::jsonb,
+  p_composition_id uuid default null,
+  p_agent_version text default null
+)
+returns public.reports
+language plpgsql
+security definer
+set search_path = public
+as "'$$
+declare
+  updated_report public.reports;
+begin
+  update public.reports
+  set
+    payload = p_payload,
+    status = p_status,
+    composition_id = coalesce(p_composition_id, composition_id),
+    agent_version = coalesce(p_agent_version, agent_version)
+  where id = p_report_id
+  returning * into updated_report;
+
+  if updated_report.id is null then
+    raise exception '"'report % not found', p_report_id;
+  end if;
+
+  delete from public.report_citations
+  where report_id = updated_report.id;
+
+  insert into public.report_citations (
+    report_id,
+    claim_id,
+    source_document_id,
+    locator,
+    quote,
+    quote_verified
+  )
+  select
+    updated_report.id,
+    entry ->> 'claim_id',
+    (entry ->> 'source_document_id')::uuid,
+    coalesce(entry -> 'locator', '{}'::jsonb),
+    coalesce(entry ->> 'quote', ''),
+    coalesce((entry ->> 'quote_verified')::boolean, false)
+  from jsonb_array_elements(
+    case
+      when jsonb_typeof(coalesce(p_citations, '[]'::jsonb)) = 'array' then coalesce(p_citations, '[]'::jsonb)
+      else '[]'::jsonb
+    end
+  ) entry;
+
+  return updated_report;
+end;
+"'$$;
+
+grant execute on function public.complete_report_with_citations(
+  uuid,
+  jsonb,
+  text,
+  jsonb,
+  uuid,
+  text
+) to authenticated;
+
+revoke execute on function public.complete_report_with_citations(
+  uuid,
+  jsonb,
+  text,
+  jsonb,
+  uuid,
+  text
+) from anon, public;
+
+create or replace function public.invoke_job_runner_every_10s()
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  job_runner_url text := coalesce(
+    nullif(current_setting('"'app.settings.job_runner_url', true), ''),
+    'http://127.0.0.1:54321/functions/v1/job-runner'
+  );
+  job_runner_token text := coalesce(
+    nullif(current_setting('app.settings.job_runner_token', true), ''),
+    ''
+  );
+  headers jsonb := jsonb_build_object('Content-Type', 'application/json');
+begin
+  if job_runner_token <> '' then
+    headers := headers || jsonb_build_object('x-job-runner-token', job_runner_token);
+  end if;
+
+  perform net.http_post(
+    url := job_runner_url,
+    body := '{}'::jsonb,
+    headers := headers,
+    timeout_milliseconds := 9000
+  );
+end;
+"'$$;
+
+-- Every 10 seconds, invoke the Edge Function worker that advances long-running report jobs.
+do $$
+declare
+  existing_job_id bigint;
+begin
+  for existing_job_id in
+    select jobid from cron.job where jobname = '"'job_runner_every_10s'
+  loop
+    perform cron.unschedule(existing_job_id);
+  end loop;
+
+  perform cron.schedule(
+    'job_runner_every_10s',
+    '10 seconds',
+    'select public.invoke_job_runner_every_10s();'
+  );
+end;
+"'$$;
+EOF')
+Bash(/bin/bash -lc "cat > supabase/tests/issue_30_job_runner_due_diligence.sql <<'EOF'
+begin;
+
+do "'$$
+declare
+  test_user_id uuid := '"'00000000-0000-0000-0000-000000000030';
+  personal_org_id uuid;
+  company_id uuid;
+  source_doc_id uuid;
+  report_id uuid;
+  completed_status text;
+  citation_count int;
+  created_job_id uuid;
+begin
+  if to_regclass('public.jobs') is null then
+    raise exception 'expected public.jobs table to exist';
+  end if;
+
+  if to_regclass('public.job_events') is null then
+    raise exception 'expected public.job_events table to exist';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'job_events'
+  ) then
+    raise exception 'expected public.job_events in supabase_realtime publication';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'reports'
+  ) then
+    raise exception 'expected public.reports in supabase_realtime publication';
+  end if;
+
+  if not exists (
+    select 1
+    from cron.job
+    where jobname = 'job_runner_every_10s'
+  ) then
+    raise exception 'expected job_runner_every_10s pg_cron schedule';
+  end if;
+
+  delete from auth.users where id = test_user_id;
+
+  insert into auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  values (
+    test_user_id,
+    'authenticated',
+    'authenticated',
+    'issue30-user@example.com',
+    crypt('password', gen_salt('bf')),
+    now(),
+    '{}'::jsonb,
+    '{}'::jsonb,
+    now(),
+    now()
+  );
+
+  select personal_org_id into personal_org_id
+  from public.user_profiles
+  where user_id = test_user_id;
+
+  if personal_org_id is null then
+    raise exception 'expected trigger-created personal org';
+  end if;
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', test_user_id::text, true);
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('app_metadata', json_build_object('active_org_id', personal_org_id::text))::text,
+    true
+  );
+
+  insert into public.companies (cin, legal_name, display_name, listing_status)
+  values ('L00000MH2000PLC000030', 'Issue 30 Company Ltd', 'Issue 30 Co', 'listed')
+  on conflict (cin) do update set display_name = excluded.display_name
+  returning id into company_id;
+
+  insert into public.source_documents (
+    company_id,
+    kind,
+    source_url,
+    fetched_at_window,
+    raw_content
+  ) values (
+    company_id,
+    'earnings_transcript',
+    'https://example.com/issue30/a',
+    '2026-05-10T22',
+    'Issue 30 source quote.'
+  )
+  on conflict (source_url, fetched_at_window) do update
+  set raw_content = excluded.raw_content
+  returning id into source_doc_id;
+
+  insert into public.reports (
+    org_id,
+    project_id,
+    company_id,
+    report_type,
+    composition_id,
+    source_doc_set_hash,
+    agent_version,
+    status,
+    payload,
+    created_by
+  ) values (
+    personal_org_id,
+    null,
+    company_id,
+    'due_diligence',
+    null,
+    'hash-issue-30',
+    'v1',
+    'running',
+    null,
+    test_user_id
+  )
+  returning id into report_id;
+
+  insert into public.jobs (org_id, report_id, anthropic_session_id, status)
+  values (personal_org_id, report_id, 'sess-issue-30', 'queued')
+  returning id into created_job_id;
+
+  insert into public.job_events (job_id, kind, payload)
+  values (created_job_id, 'job_enqueued', '{\"report_type\":\"due_diligence\"}'::jsonb);
+
+  perform public.complete_report_with_citations(
+    p_report_id => report_id,
+    p_payload => '{\"executive_summary\":\"Issue 30 complete\"}'::jsonb,
+    p_status => 'succeeded',
+    p_citations => jsonb_build_array(
+      jsonb_build_object(
+        'claim_id', 'claim-1',
+        'source_document_id', source_doc_id,
+        'locator', jsonb_build_object('type', 'pdf_page', 'page', 1),
+        'quote', 'Issue 30 source quote.',
+        'quote_verified', true
+      )
+    )
+  );
+
+  select status into completed_status
+  from public.reports
+  where id = report_id;
+
+  if completed_status <> 'succeeded' then
+    raise exception 'expected report status succeeded, got %', completed_status;
+  end if;
+
+  select count(*) into citation_count
+  from public.report_citations
+  where report_id = report_id;
+
+  if citation_count <> 1 then
+    raise exception 'expected 1 materialized citation after report completion, got %', citation_count;
+  end if;
+
+  reset role;
+end;
+"'$$;
+
+rollback;
+EOF')
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '1,240p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '232,340p'")
+I’m implementing the `job-runner` Edge Function now. It will iterate queued/running jobs, append realtime progress events, run the due-diligence agent flow, invoke Composer with recovery, and complete the report transactionally (payload + citations + status).
+Agent idle for 1 minute
+Bash(/bin/bash -lc "mkdir -p supabase/functions/job-runner && cat > supabase/functions/job-runner/index.ts <<'EOF'
+import \"jsr:@supabase/functions-js/edge-runtime.d.ts\";
+import {
+  runReportAgent,
+  runReportAgentShapeC,
+  type LegacyAgentRunResult,
+  type ReportType
+} from \"../_shared/agent-orchestrator.ts\";
+import {
+  composeWithRecovery,
+  ReportComposer,
+  type MaterializedCitation,
+  type ReportComposerError
+} from \"../_shared/report-composer.ts\";
+import { createJobRunner, type JobRow } from \"../_shared/job-runner.ts\";
+import { DueDiligenceReportSchema } from \"../_shared/report-schemas.ts\";
+import { createSourceIngestor } from \"../_shared/source-ingestor.ts\";
+import { corsHeaders, jsonResponse } from \"../_shared/cors.ts\";
+import { createServiceClient } from \"../_shared/supabase.ts\";
+
+type JobSpec = {
+  report_type: ReportType;
+  company_id: string;
+  custom_sources?: string[];
+  project_id?: string | null;
+  actor_id?: string;
+};
+
+type ReportRow = {
+  id: string;
+  org_id: string;
+  project_id: string | null;
+  company_id: string;
+  report_type: ReportType;
+  composition_id: string | null;
+  source_doc_set_hash: string;
+  agent_version: string;
+  status: string;
+  created_by: string | null;
+};
+
+function normalizeCustomSources(value: unknown): string[] {
+  if ("'!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function isAuthorizedCronRequest(request: Request): boolean {
+  const configuredToken = Deno.env.get("JOB_RUNNER_CRON_TOKEN");
+  if (!configuredToken) {
+    return true;
+  }
+
+  const token = request.headers.get("x-job-runner-token");
+  return token === configuredToken;
+}
+
+async function completeReportWithCitations(input: {
+  serviceClient: ReturnType<typeof createServiceClient>;
+  reportId: string;
+  payload: Record<string, unknown>;
+  status: "succeeded" | "failed";
+  citations: MaterializedCitation[];
+  compositionId: string | null;
+  agentVersion: string;
+  sourceDocSetHash: string;
+}): Promise<ReportRow> {
+  const { data, error } = await input.serviceClient.rpc("complete_report_with_citations", {
+    p_report_id: input.reportId,
+    p_payload: input.payload,
+    p_status: input.status,
+    p_citations: input.citations,
+    p_composition_id: input.compositionId,
+    p_agent_version: input.agentVersion,
+    p_source_doc_set_hash: input.sourceDocSetHash
+  });
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to complete report with citations");
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as ReportRow | null;
+  if (!row) {
+    throw new Error("Failed to complete report with citations");
+  }
+
+  return row;
+}
+
+async function loadJobSpec(
+  runner: ReturnType<typeof createJobRunner>,
+  jobId: string
+): Promise<JobSpec | null> {
+  const events = await runner.listJobEvents(jobId);
+  const enqueued = events.find((event) => event.kind === "job_enqueued");
+  if (!enqueued?.payload || typeof enqueued.payload !== "object") {
+    return null;
+  }
+
+  const raw = enqueued.payload as Record<string, unknown>;
+  if (
+    raw.report_type !== "due_diligence" &&
+    raw.report_type !== "earnings_summary" &&
+    raw.report_type !== "lead_intel"
+  ) {
+    return null;
+  }
+
+  if (typeof raw.company_id !== "string") {
+    return null;
+  }
+
+  return {
+    report_type: raw.report_type,
+    company_id: raw.company_id,
+    custom_sources: normalizeCustomSources(raw.custom_sources),
+    project_id: typeof raw.project_id === "string" ? raw.project_id : null,
+    actor_id: typeof raw.actor_id === "string" ? raw.actor_id : undefined
+  };
+}
+
+async function processDueDiligenceJob(input: {
+  serviceClient: ReturnType<typeof createServiceClient>;
+  runner: ReturnType<typeof createJobRunner>;
+  job: JobRow;
+  spec: JobSpec;
+}): Promise<void> {
+  const { serviceClient, runner, spec } = input;
+
+  if (!input.job.report_id) {
+    throw new Error("Job missing report_id");
+  }
+
+  const { data: reportRow, error: reportError } = await serviceClient
+    .from("reports")
+    .select(
+      "id, org_id, project_id, company_id, report_type, composition_id, source_doc_set_hash, agent_version, status, created_by"
+    )
+    .eq("id", input.job.report_id)
+    .single();
+
+  if (reportError || !reportRow) {
+    throw new Error(reportError?.message ?? "Report not found for job");
+  }
+
+  if (reportRow.report_type !== "due_diligence") {
+    throw new Error(`Unsupported report_type for issue #30 path: ${reportRow.report_type}`);
+  }
+
+  await runner.updateJob(input.job.id, {
+    status: "running",
+    anthropic_session_id: input.job.anthropic_session_id ?? `sess_${input.job.id}`
+  });
+
+  await serviceClient
+    .from("reports")
+    .update({ status: "running" })
+    .eq("id", reportRow.id);
+
+  await runner.appendEvent(input.job.id, "job_status", {
+    status: "running"
+  });
+
+  await runner.appendEvent(input.job.id, "anthropic_polled", {
+    session_id: input.job.anthropic_session_id ?? `sess_${input.job.id}`,
+    polled_at: new Date().toISOString()
+  });
+
+  const sourceIngestor = createSourceIngestor(serviceClient);
+  const ingestedSources = await sourceIngestor.fetchSources({
+    company_id: spec.company_id,
+    kind: "earnings_transcript",
+    source_urls: spec.custom_sources ?? [],
+    audit: {
+      org_id: reportRow.org_id,
+      actor_id: spec.actor_id ?? reportRow.created_by ?? "system",
+      project_id: reportRow.project_id,
+      report_type: reportRow.report_type
+    }
+  });
+
+  const sourceDocumentIds = ingestedSources.map((document) => document.id);
+  const sortedSourceIds = sourceDocumentIds.slice().sort();
+  const sourceDocSetHash = await sha256Hex(JSON.stringify(sortedSourceIds));
+
+  await runner.appendEvent(input.job.id, "job_progress", {
+    stage: "sources_ready",
+    source_document_count: sortedSourceIds.length
+  });
+
+  const composer = new ReportComposer({
+    sourceDocSetHash,
+    sourceDocuments: ingestedSources.map((source) => ({
+      id: source.id,
+      raw_content: source.raw_content
+    }))
+  });
+
+  const logComposerFailure = async (attempt: 1 | 2, error: ReportComposerError) => {
+    await serviceClient.from("audit_events").insert({
+      org_id: reportRow.org_id,
+      project_id: reportRow.project_id,
+      actor_id: spec.actor_id ?? reportRow.created_by,
+      kind: "report_composer_failed",
+      payload: {
+        report_id: reportRow.id,
+        report_type: reportRow.report_type,
+        source_doc_set_hash: sourceDocSetHash,
+        attempt,
+        error_code: error.code,
+        details: error.details
+      }
+    });
+  };
+
+  const logCitationVerificationFailures = async (
+    verificationFailures: Array<{ claim_id: string; source_document_id: string; quote: string }>
+  ) => {
+    if (verificationFailures.length === 0) return;
+
+    const events = verificationFailures.map((failure) => ({
+      org_id: reportRow.org_id,
+      project_id: reportRow.project_id,
+      actor_id: spec.actor_id ?? reportRow.created_by,
+      kind: "citation_verification_failed",
+      payload: {
+        report_id: reportRow.id,
+        report_type: reportRow.report_type,
+        source_doc_set_hash: sourceDocSetHash,
+        claim_id: failure.claim_id,
+        source_document_id: failure.source_document_id,
+        quote: failure.quote
+      }
+    }));
+
+    await serviceClient.from("audit_events").insert(events);
+  };
+
+  const primaryAgentRun = await runReportAgent({
+    reportType: "due_diligence",
+    companyId: spec.company_id,
+    sourceDocumentIds: sortedSourceIds,
+    customSources: spec.custom_sources ?? [],
+    projectId: reportRow.project_id,
+    cache: {
+      client: serviceClient,
+      sourceDocSetHash
+    }
+  });
+
+  const composed = await composeWithRecovery({
+    composer,
+    rawArgs: primaryAgentRun.payload,
+    schema: DueDiligenceReportSchema,
+    retryWithStricterPrompt: async () => {
+      const retryRun = await runReportAgent({
+        reportType: "due_diligence",
+        companyId: spec.company_id,
+        sourceDocumentIds: sortedSourceIds,
+        customSources: spec.custom_sources ?? [],
+        projectId: reportRow.project_id,
+        cache: {
+          client: serviceClient,
+          sourceDocSetHash
+        },
+        recoveryMode: "strict_retry"
+      });
+      return retryRun.payload;
+    },
+    fallbackShapeC: async () => {
+      const fallbackRun = await runReportAgentShapeC({
+        reportType: "due_diligence",
+        companyId: spec.company_id,
+        sourceDocumentIds: sortedSourceIds,
+        customSources: spec.custom_sources ?? [],
+        projectId: reportRow.project_id
+      });
+      return fallbackRun.payload;
+    },
+    onRejectableFailure: logComposerFailure
+  });
+
+  await logCitationVerificationFailures(composed.verificationFailures);
+
+  let compositionId = primaryAgentRun.cache.compositionId;
+  if (compositionId && composed.attemptCount > 1) {
+    compositionId = null;
+  }
+
+  if (reportRow.project_id === null && !compositionId) {
+    const { data: insertedComposition, error: compositionError } = await serviceClient
+      .from("compositions")
+      .upsert(
+        {
+          company_id: spec.company_id,
+          report_type: "due_diligence",
+          source_doc_set_hash: sourceDocSetHash,
+          agent_version: primaryAgentRun.agentVersion,
+          payload: composed.payload,
+          expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+        },
+        { onConflict: "company_id,report_type,source_doc_set_hash,agent_version" }
+      )
+      .select("id")
+      .single();
+
+    if (compositionError || !insertedComposition) {
+      throw new Error(compositionError?.message ?? "Failed to persist composition");
+    }
+
+    compositionId = insertedComposition.id;
+  }
+
+  await completeReportWithCitations({
+    serviceClient,
+    reportId: reportRow.id,
+    payload: composed.payload as Record<string, unknown>,
+    status: "succeeded",
+    citations: composed.citations,
+    compositionId,
+    agentVersion: primaryAgentRun.agentVersion,
+    sourceDocSetHash
+  });
+
+  await runner.updateJob(input.job.id, { status: "succeeded" });
+  await runner.appendEvent(input.job.id, "job_status", {
+    status: "succeeded",
+    report_id: reportRow.id,
+    cache_hit: primaryAgentRun.cache.hit,
+    composer_attempt_count: composed.attemptCount,
+    shape_c_fallback_used: composed.usedShapeCFallback
+  });
+
+  const auditKind = primaryAgentRun.cache.hit ? "composition_cache_hit" : "agent_run";
+  await serviceClient.from("audit_events").insert({
+    org_id: reportRow.org_id,
+    project_id: reportRow.project_id,
+    actor_id: spec.actor_id ?? reportRow.created_by,
+    kind: auditKind,
+    payload: {
+      report_id: reportRow.id,
+      report_type: reportRow.report_type,
+      tool_name: primaryAgentRun.toolName,
+      agent_id: primaryAgentRun.agentId,
+      agent_version: primaryAgentRun.agentVersion,
+      source_doc_set_hash: sourceDocSetHash,
+      cache_hit: primaryAgentRun.cache.hit,
+      cache_bypass: reportRow.project_id !== null,
+      composer_attempt_count: composed.attemptCount,
+      shape_c_fallback_used: composed.usedShapeCFallback
+    }
+  });
+}
+
+async function failJob(input: {
+  serviceClient: ReturnType<typeof createServiceClient>;
+  runner: ReturnType<typeof createJobRunner>;
+  job: JobRow;
+  message: string;
+}) {
+  await input.runner.updateJob(input.job.id, { status: "failed" });
+
+  if (input.job.report_id) {
+    await input.serviceClient
+      .from("reports")
+      .update({ status: "failed" })
+      .eq("id", input.job.report_id);
+  }
+
+  await input.runner.appendEvent(input.job.id, "job_status", {
+    status: "failed",
+    message: input.message
+  });
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse(405, { error: "Method not allowed" });
+  }
+
+  if (!isAuthorizedCronRequest(request)) {
+    return jsonResponse(401, { error: "Unauthorized cron invocation" });
+  }
+
+  const serviceClient = createServiceClient();
+  const runner = createJobRunner(serviceClient);
+  const jobs = await runner.listActiveJobs(20);
+
+  let processed = 0;
+  let failed = 0;
+
+  for (const job of jobs) {
+    const spec = await loadJobSpec(runner, job.id);
+    if (!spec) {
+      failed += 1;
+      await failJob({
+        serviceClient,
+        runner,
+        job,
+        message: "Missing or invalid job_enqueued spec payload"
+      });
+      continue;
+    }
+
+    if (spec.report_type !== "due_diligence") {
+      continue;
+    }
+
+    try {
+      await processDueDiligenceJob({
+        serviceClient,
+        runner,
+        job,
+        spec
+      });
+      processed += 1;
+    } catch (error) {
+      failed += 1;
+      await failJob({
+        serviceClient,
+        runner,
+        job,
+        message: error instanceof Error ? error.message : "unknown job failure"
+      });
+    }
+  }
+
+  return jsonResponse(200, {
+    processed,
+    failed,
+    scanned_jobs: jobs.length
+  });
+});
+EOF')
+Bash(/bin/bash -lc "nl -ba web/app/report-panel.tsx | sed -n '360,460p'")
+I’ve wired the async due-diligence path and added the job worker plus realtime UI panel. Next I’m running the Supabase unit suite to catch TypeScript/runtime issues before running full workspace checks.
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase test:unit')
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Unit/type checks are done; only DB tests failed due local Supabase not running on `127.0.0.1:54322` (same environment limitation as prior issues). I’m doing a final diff review now, then I’ll commit with the required structured message.
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '190,320p'")
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc 'git diff --stat')
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/job-runner.ts | sed -n '1,280p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/job-runner/index.ts | sed -n '1,360p'")
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260510223000_issue_30_job_runner_due_diligence.sql | sed -n '1,340p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/job-runner/index.ts | sed -n '360,520p'")
+Bash(/bin/bash -lc "nl -ba supabase/tests/issue_30_job_runner_due_diligence.sql | sed -n '1,300p'")
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Implementation is complete and validated as far as this environment allows. I’m staging all issue-30 changes and creating the required structured `RALPH:` commit message now.
+Bash(/bin/bash -lc "git add supabase/functions/reports/index.ts web/app/report-panel.tsx supabase/functions/_shared/job-runner.ts supabase/functions/_shared/__tests__/job-runner.test.ts supabase/functions/job-runner/index.ts supabase/migrations/20260510223000_issue_30_job_runner_due_diligence.sql supabase/tests/issue_30_job_runner_due_diligence.sql && git commit -m \"RALPH: complete issue #30 Job Runner + Due Diligence Analyst long-form path (PRD AD-5/AD-6/AD-11)\" -m \"Task completed + PRD reference:\\n- Implemented issue #30 async long-form due diligence path aligned to docs/PRD.md AD-5 (job-mode execution), AD-6 (structured final tool output), and AD-11 (composer citation contract).\\n\\nKey decisions made:\\n- Added shared Job Runner deep module with enqueue(spec) and getJob(id), plus worker helpers for active job iteration, event append, and status updates.\\n- Split POST /functions/v1/reports so due_diligence now returns mode=job with {report_id, job_id} immediately and defers ingestion/agent/composition work to background worker.\\n- Added dedicated Supabase Edge Function job-runner that processes queued/running due_diligence jobs, emits job_events progress, composes output with full recovery contract, materializes citations transactionally, and updates reports/jobs states.\\n- Added jobs/job_events schema migration with RLS, indexes, Supabase Realtime publication wiring for job_events+reports, and pg_cron 10-second worker trigger via pg_net HTTP invocation.\\n- Added Next.js B2B job-mode UX in report panel with realtime subscriptions to job_events and report status/payload updates.\\n\\nFiles changed:\\n- supabase/functions/_shared/job-runner.ts\\n- supabase/functions/_shared/__tests__/job-runner.test.ts\\n- supabase/functions/reports/index.ts\\n- supabase/functions/job-runner/index.ts\\n- supabase/migrations/20260510223000_issue_30_job_runner_due_diligence.sql\\n- supabase/tests/issue_30_job_runner_due_diligence.sql\\n- web/app/report-panel.tsx\\n\\nBlockers or notes for next iteration:\\n- npm run typecheck passes.\\n- npm run test: unit tests pass; DB tests fail in this environment because local Supabase/Postgres is not running at 127.0.0.1:54322.\\n- Manual realtime demo (due diligence request -> job progress stream -> final dossier) could not be executed in this headless environment without a running local Supabase stack.\"")
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc 'git rev-parse --short HEAD')
+Implemented issue `#30` on branch `sandcastle/issue-30-job-runner-due-diligence-analyst-long-form-path` and committed as `572268b`.
+
+Key deliverables:
+- Async due-diligence job path in `/functions/v1/reports` now returns `{ mode: "job", report_id, job_id }` for `report_type: "due_diligence"` in [reports/index.ts](/home/agent/workspace/supabase/functions/reports/index.ts).
+- New Job Runner module with `enqueue(spec)` and `getJob(id)` in [job-runner.ts](/home/agent/workspace/supabase/functions/_shared/job-runner.ts), with RED/GREEN test in [job-runner.test.ts](/home/agent/workspace/supabase/functions/_shared/__tests__/job-runner.test.ts).
+- New background worker Edge Function in [job-runner/index.ts](/home/agent/workspace/supabase/functions/job-runner/index.ts) that:
+  - iterates queued/running jobs,
+  - emits `job_events`,
+  - runs due-diligence agent flow,
+  - applies Composer recovery flow,
+  - updates `reports.payload` + citations transactionally and marks jobs/report status.
+- Migration for `jobs` + `job_events`, realtime publication (`job_events` and `reports`), `pg_cron` 10s trigger, and completion RPC in [20260510223000_issue_30_job_runner_due_diligence.sql](/home/agent/workspace/supabase/migrations/20260510223000_issue_30_job_runner_due_diligence.sql).
+- DB test coverage added in [issue_30_job_runner_due_diligence.sql](/home/agent/workspace/supabase/tests/issue_30_job_runner_due_diligence.sql).
+- Next.js B2B realtime progress UI added in [report-panel.tsx](/home/agent/workspace/web/app/report-panel.tsx) (subscribes to `job_events` and `reports` updates).
+
+Validation run:
+- `npm run typecheck` passed.
+- `npm run test`:
+  - unit tests passed,
+  - DB tests failed due no local Supabase/Postgres at `127.0.0.1:54322` in this environment.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

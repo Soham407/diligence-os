@@ -18,15 +18,22 @@ type AuthPanelProps = {
 
 export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthPanelProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
-  const { supabaseUrl, supabaseAnonKey } = useMemo(() => getSupabaseEnv(), []);
+  const supabaseEnv = useMemo(() => getSupabaseEnv(), []);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedOrgId, setSelectedOrgId] = useState(activeOrgId ?? "");
 
+  const authConfigured = supabase !== null && supabaseEnv !== null;
+
   async function onMagicLinkSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!supabase) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -48,6 +55,11 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
   }
 
   async function onGoogleClick() {
+    if (!supabase) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     const redirectTo = `${window.location.origin}/auth/callback`;
@@ -64,6 +76,11 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
   }
 
   async function onSignOutClick() {
+    if (!supabase) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
 
@@ -79,7 +96,7 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
   }
 
   async function onSwitchOrg(nextOrgId: string) {
-    if (!userId || !nextOrgId || nextOrgId === selectedOrgId) {
+    if (!userId || !nextOrgId || nextOrgId === selectedOrgId || !supabaseEnv || !supabase) {
       return;
     }
 
@@ -97,6 +114,7 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
       return;
     }
 
+    const { supabaseUrl, supabaseAnonKey } = supabaseEnv;
     const response = await fetch(`${supabaseUrl}/functions/v1/orgs/switch`, {
       method: "POST",
       headers: {
@@ -128,17 +146,27 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
   }
 
   return (
-    <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-      <h2 className="text-2xl font-semibold">Authentication</h2>
+    <section className="section-card space-y-5">
+      <div>
+        <p className="eyebrow">Session</p>
+        <h2 className="section-title">Authentication</h2>
+      </div>
+      {!authConfigured ? (
+        <p className="status-warn">
+          Supabase auth is not configured, so sign-in and org switching are disabled.
+        </p>
+      ) : null}
       {userEmail ? (
         <div className="space-y-4">
-          <p className="text-sm text-slate-300">Signed in as {userEmail}</p>
-          <label className="block text-sm text-slate-300" htmlFor="active-org">
+          <p className="rounded-2xl border border-[var(--line)] bg-white/50 px-4 py-3 text-sm font-semibold">
+            Signed in as {userEmail}
+          </p>
+          <label className="block text-sm font-bold text-[var(--muted)]" htmlFor="active-org">
             Active organization
           </label>
           <select
-            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
-            disabled={busy || memberships.length === 0}
+            className="field"
+            disabled={busy || memberships.length === 0 || !authConfigured}
             id="active-org"
             onChange={(event) => {
               void onSwitchOrg(event.target.value);
@@ -157,8 +185,8 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
             ))}
           </select>
           <button
-            className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
-            disabled={busy}
+            className="btn-quiet w-full"
+            disabled={busy || !authConfigured}
             onClick={onSignOutClick}
             type="button"
           >
@@ -168,11 +196,11 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
       ) : (
         <div className="space-y-4">
           <form className="space-y-3" onSubmit={onMagicLinkSubmit}>
-            <label className="block text-sm text-slate-300" htmlFor="email">
+            <label className="block text-sm font-bold text-[var(--muted)]" htmlFor="email">
               Email (magic link)
             </label>
             <input
-              className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
+              className="field"
               id="email"
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
@@ -181,8 +209,8 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
               value={email}
             />
             <button
-              className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
-              disabled={busy}
+              className="btn-primary w-full"
+              disabled={busy || !authConfigured}
               type="submit"
             >
               Send magic link
@@ -190,8 +218,8 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
           </form>
 
           <button
-            className="rounded-md border border-slate-500 px-4 py-2 text-sm font-semibold text-slate-100 disabled:opacity-60"
-            disabled={busy}
+            className="btn-secondary w-full"
+            disabled={busy || !authConfigured}
             onClick={onGoogleClick}
             type="button"
           >
@@ -200,8 +228,8 @@ export function AuthPanel({ userEmail, userId, activeOrgId, memberships }: AuthP
         </div>
       )}
 
-      {status ? <p className="text-sm text-emerald-400">{status}</p> : null}
-      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      {status ? <p className="status-success">{status}</p> : null}
+      {error ? <p className="status-error">{error}</p> : null}
     </section>
   );
 }

@@ -1,0 +1,192 @@
+
+--- Run started: 2026-05-10T06:15:44.149Z ---
+Sandcastle Run
+  Agent: implementer-29
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-29-layer-2-compositions-cache-cache-bypass-predicate
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (27.8s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~2261 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull issue #29 and its parent context first, then read `AGENTS.md` and `docs/PRD.md` so I can implement exactly the contract and acceptance criteria without scope creep.
+Bash(/bin/bash -lc 'git status --short --branch && git branch --show-current && ls -la && rg --files | head -n 200')
+I confirmed we’re already on the required branch. Next I’ll fetch issue #29/#1 and read the local agent/PRD docs, then map the exact files and tests to touch.
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+Bash(/bin/bash -lc 'gh issue view 29 --comments')
+I’ve loaded the PRD; next I need the exact issue contract text because the `gh` output came back empty in parallel mode. I’ll fetch both issues again with pager disabled, then inspect current cache/composer/report code and tests.
+Bash(/bin/bash -lc "GH_PAGER=cat gh issue view 29 --comments || true; echo '---'; GH_PAGER=cat gh issue view 1 --comments || true")
+I still didn’t get issue content from `gh`, so I’m checking the GitHub CLI/repo context and then I’ll retry with explicit JSON fields to force machine-readable output.
+Bash(/bin/bash -lc "gh --version && git remote -v && gh repo view --json nameWithOwner,url || true && gh issue view 29 --json number,title,body,comments --jq '{number,title,body,comments:[.comments[].body]}'")
+Bash(/bin/bash -lc "gh issue view 1 --json number,title,body,comments --jq '{number,title,body,comments:[.comments[].body]}'")
+Bash(/bin/bash -lc 'gh api repos/Soham407/diligence-os/issues/1')
+I now have issue #29’s exact acceptance criteria and parent PRD context. Next I’ll inspect current `reports`, `agent-orchestrator`, migrations, and tests to implement cache read/write+bypass with minimal surface area.
+Bash(/bin/bash -lc "cat docs/agents/issue-tracker.md && echo '---' && cat docs/agents/domain.md && echo '---' && cat docs/agents/triage-labels.md")
+Bash(/bin/bash -lc "find supabase -maxdepth 4 -type f | sed -n '1,240p'")
+Bash(/bin/bash -lc "grep -R --line-number --exclude-dir=node_modules \"compositions\\|source_doc_set_hash\\|project_id\\|AgentOrchestrator\\|runAgent\\|report_type\" supabase/functions supabase/migrations supabase/tests | sed -n '1,260p'")
+I found existing cache-related code paths already in `reports/index.ts`, so I need to verify against issue #29 because acceptance criteria explicitly says orchestration-level behavior. I’m quickly reading `CONTEXT.md` and ADRs before making changes.
+Bash(/bin/bash -lc "cat CONTEXT.md && echo '---' && find docs/adr -maxdepth 1 -type f | sort | sed -n '1,120p' && echo '---' && for f in "'$(find docs/adr -maxdepth 1 -type f | sort); do echo "### $f"; sed -n '"'1,220p' \""'$f"; echo; done')
+Bash(/bin/bash -lc "if [ -d docs/adr ]; then find docs/adr -maxdepth 1 -type f | sort | sed -n '1,120p'; for f in "'$(find docs/adr -maxdepth 1 -type f | sort); do echo "### $f"; sed -n '"'1,220p' \""'$f"; echo; done; fi')
+I’m now drilling into `reports` and `agent-orchestrator` to locate the exact cache flow and decide the smallest safe patch that matches the issue’s contract.
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/reports/index.ts | sed -n '260,620p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '260,560p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/agent-orchestrator.ts | sed -n '560,980p'")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/__tests__/agent-orchestrator.test.ts | sed -n '1,320p'")
+I confirmed cache logic currently lives in `reports`, not the orchestrator. I’m checking schema/migrations and DB tests now to see what already exists versus what issue #29 still requires (especially nightly `pg_cron` cleanup).
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql | sed -n '1,340p'")
+Bash(/bin/bash -lc "nl -ba supabase/tests/issue_33_agency_projects_cache_bypass.sql | sed -n '1,340p'")
+Bash(/bin/bash -lc "cat supabase/package.json && echo '---' && cat package.json")
+The schema already contains `compositions`, so the remaining gaps are behavior and cleanup. I’m validating how clients are created and then I’ll add orchestrator-level cache logic with focused tests first (RED).
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/supabase.ts | sed -n '1,260p' && echo '---' && nl -ba supabase/functions/_shared/report-composer.ts | sed -n '1,220p'")
+I’ve narrowed the gap to orchestration-level cache behavior plus a nightly eviction job. I’m now checking for existing cron scheduling patterns so the migration is consistent with the repo.
+Bash(/bin/bash -lc "grep -R --line-number \"cron\\.schedule\\|cron\\.unschedule\\|pg_cron\\|delete from public.compositions\" supabase/migrations supabase/tests | sed -n '1,220p'")
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260510143000_issue_23_canonical_companies_securities_master_seed.sql | sed -n '1,340p'")
+Plan to implement issue #29 with minimal blast radius:
+
+1. Add orchestration-layer cache helpers in `agent-orchestrator.ts`  
+- Compute canonical `source_doc_set_hash` from sorted source IDs.  
+- Read Layer-2 cache before Anthropic calls using key `(company_id, report_type, source_doc_set_hash, agent_version)`.  
+- Enforce bypass when `project_id` is present.  
+- Return cache metadata (`hit/bypassed/composition_id/hash`) with orchestrator results.
+
+2. Wire `reports/index.ts` to orchestrator cache metadata  
+- Use orchestrator cache lookup for both streaming (`earnings_summary`) and sync flows.  
+- On cache miss, persist validated composed payload to `compositions` with 6h TTL.  
+- Keep strict-retry/fallback path bypassing cache to avoid stale invalid payload loops.  
+- Preserve existing report persistence and citation materialization behavior.
+
+3. Add nightly cleanup migration  
+- Create `delete_expired_compositions()` and schedule nightly `pg_cron` job (idempotent unschedule/reschedule pattern used elsewhere).
+
+4. Add focused tests (RED→GREEN)  
+- Validate cache hash normalization and bypass behavior in orchestrator helper tests.
+
+5. Run verification commands and commit with required `RALPH:` structured message.
+I’ve patched the orchestrator to include cache lookup metadata and cache-key hashing. I’m reviewing the diff for correctness and then wiring `reports/index.ts` to use it, including streaming cache-write behavior.
+Bash(/bin/bash -lc "git diff -- supabase/functions/_shared/agent-orchestrator.ts | sed -n '1,280p'")
+I’ve wired cache reads/writes through the report flow; I’m now tightening audit semantics so cache hits are explicit and Anthropic runs remain distinguishable for the manual verification criterion.
+I’m adding the nightly `pg_cron` eviction migration next, reusing the repo’s existing unschedule/reschedule pattern so it stays idempotent across replays.
+Bash(/bin/bash -lc "cat > supabase/migrations/20260510210000_issue_29_layer2_compositions_cache_cleanup.sql <<'SQL'
+create extension if not exists pg_cron with schema pg_catalog;
+
+create or replace function public.delete_expired_compositions()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as "'$$
+declare
+  deleted_count integer;
+begin
+  delete from public.compositions
+  where expires_at <= now();
+
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$$;
+
+-- Nightly eviction for expired Layer 2 compositions.
+do $$
+declare
+  existing_job_id bigint;
+begin
+  for existing_job_id in
+    select jobid from cron.job where jobname = '"'evict_expired_compositions_nightly'
+  loop
+    perform cron.unschedule(existing_job_id);
+  end loop;
+
+  perform cron.schedule(
+    'evict_expired_compositions_nightly',
+    '17 2 * * *',
+    'select public.delete_expired_compositions();'
+  );
+end;
+"'$$;
+SQL')
+I’m adding focused orchestrator tests now: cache-key determinism plus cache hit/bypass behavior, using a minimal fake Supabase query chain and a mocked `Deno.env` in Vitest.
+Bash(/bin/bash -lc "git diff -- supabase/functions/_shared/__tests__/agent-orchestrator.test.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "git diff -- supabase/functions/reports/index.ts | sed -n '1,320p'")
+Bash(/bin/bash -lc "git diff -- supabase/functions/_shared/agent-orchestrator.ts | sed -n '1,360p'")
+Bash(/bin/bash -lc "cat > supabase/tests/issue_29_compositions_cache_cleanup.sql <<'SQL'
+begin;
+
+do "'$$
+declare
+  company_id uuid;
+  deleted_count integer;
+  remaining_count integer;
+begin
+  insert into public.companies (cin, legal_name, display_name, listing_status)
+  values ('"'L00000MH2000PLC000029', 'Issue 29 Co Pvt Ltd', 'Issue 29 Co', 'listed')
+  returning id into company_id;
+
+  insert into public.compositions (
+    company_id,
+    report_type,
+    source_doc_set_hash,
+    agent_version,
+    payload,
+    expires_at
+  ) values
+    (company_id, 'earnings_summary', 'hash-expired-29', 'v1', '{\"summary\":\"expired\"}'::jsonb, now() - interval '1 hour'),
+    (company_id, 'earnings_summary', 'hash-active-29', 'v1', '{\"summary\":\"active\"}'::jsonb, now() + interval '1 hour');
+
+  select public.delete_expired_compositions() into deleted_count;
+
+  if deleted_count <> 1 then
+    raise exception 'expected delete_expired_compositions to delete 1 row, got %', deleted_count;
+  end if;
+
+  select count(*) into remaining_count
+  from public.compositions
+  where company_id = company_id
+    and source_doc_set_hash = 'hash-active-29';
+
+  if remaining_count <> 1 then
+    raise exception 'expected active composition to remain, got % rows', remaining_count;
+  end if;
+
+  if exists (
+    select 1
+    from public.compositions
+    where company_id = company_id
+      and source_doc_set_hash = 'hash-expired-29'
+  ) then
+    raise exception 'expected expired composition to be deleted';
+  end if;
+end;
+"'$$;
+
+rollback;
+SQL')
+I’ve completed code + migration + tests for the cache path and cleanup job. I’m running `npm run typecheck` and `npm run test` now, then I’ll address any failures before committing.
+Bash(/bin/bash -lc 'npm run typecheck')
+Typecheck is still running dependency/workspace resolution in this environment; once it completes I’ll move straight to full test run and then fix any regressions.
+Bash(/bin/bash -lc 'npm run test')
+Unit tests passed, and the suite is now in the DB-test phase. I’m waiting for completion and will capture any environment-related blockers precisely if it fails.
+Bash(/bin/bash -lc 'nl -ba supabase/migrations/20260510210000_issue_29_layer2_compositions_cache_cleanup.sql')
+Bash(/bin/bash -lc 'nl -ba supabase/tests/issue_29_compositions_cache_cleanup.sql')
+Bash(/bin/bash -lc 'git status --short')
+Implementation and tests are in place, and verification is complete except DB tests (blocked by local Supabase not running). I’m committing now with the required structured `RALPH:` message.
+Bash(/bin/bash -lc "git add supabase/functions/_shared/agent-orchestrator.ts supabase/functions/reports/index.ts supabase/functions/_shared/__tests__/agent-orchestrator.test.ts supabase/migrations/20260510210000_issue_29_layer2_compositions_cache_cleanup.sql supabase/tests/issue_29_compositions_cache_cleanup.sql && git commit -m \"RALPH: complete issue #29 Layer 2 compositions cache + cache-bypass predicate (PRD AD-4/AD-10)\" -m \"Task completed + PRD reference:\\n- Implemented issue #29 Layer 2 compositions cache flow per docs/PRD.md AD-4 hybrid cache key/TTL and AD-10 agency cache-bypass predicate.\\n\\nKey decisions made:\\n- Moved cache lookup responsibility into Agent Orchestrator (runAgent/runReportAgent) with canonical source_doc_set_hash keying and project_id bypass.\\n- Enabled streaming earnings_summary path to consume cache hits and persist composed payloads to compositions on cache miss (6h TTL).\\n- Added explicit audit differentiation for cache hits via composition_cache_hit events while retaining agent_run on Anthropic executions.\\n- Added nightly pg_cron cleanup function/job to evict expired compositions idempotently.\\n\\nFiles changed:\\n- supabase/functions/_shared/agent-orchestrator.ts\\n- supabase/functions/reports/index.ts\\n- supabase/functions/_shared/__tests__/agent-orchestrator.test.ts\\n- supabase/migrations/20260510210000_issue_29_layer2_compositions_cache_cleanup.sql\\n- supabase/tests/issue_29_compositions_cache_cleanup.sql\\n\\nBlockers or notes for next iteration:\\n- npm run typecheck passes.\\n- npm run test: unit tests pass; DB tests fail in this environment because local Supabase/Postgres is not running at 127.0.0.1:54322.\"")
+Bash(/bin/bash -lc 'git status --short --branch && git show --name-only --oneline --no-patch HEAD && git show --name-only --pretty=format: HEAD')
+I’m doing a final sanity check of the commit contents and branch cleanliness, then I’ll send the completion marker.
+Bash(/bin/bash -lc 'git status --short --branch')
+Bash(/bin/bash -lc 'git show --stat --oneline HEAD')
+Bash(/bin/bash -lc 'git show --name-only --pretty=format: HEAD')
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

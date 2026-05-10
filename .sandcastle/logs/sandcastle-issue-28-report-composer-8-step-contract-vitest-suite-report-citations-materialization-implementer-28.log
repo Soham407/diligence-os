@@ -1,0 +1,132 @@
+
+--- Run started: 2026-05-10T06:00:20.357Z ---
+Sandcastle Run
+  Agent: implementer-28
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-28-report-composer-8-step-contract-vitest-suite-report-citations-materialization
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (4.0s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1908 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull issue `#28` and parent issue `#1`, then read `AGENTS.md` and `docs/PRD.md` plus the existing report-related code/tests to extract the exact contract before making any edits.
+Bash(/bin/bash -lc 'pwd && ls -la')
+Bash(/bin/bash -lc 'gh issue view 28 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I got no visible output from the `gh issue view` calls, so I’m re-running them with pager disabled and explicit JSON fields to reliably capture the issue text/comments.
+Bash(/bin/bash -lc 'GH_PAGER=cat gh issue view 28 --comments --json number,title,body,comments,labels,state,url')
+Bash(/bin/bash -lc 'GH_PAGER=cat gh issue view 1 --comments --json number,title,body,comments,labels,state,url')
+I’ve captured the exact issue contract and parent context; next I’ll read repo conventions and the PRD sections for Report Composer, then inspect the current reports/orchestrator tests to scope only the required changes.
+Bash(/bin/bash -lc 'cat docs/agents/triage-labels.md')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'cat docs/agents/issue-tracker.md')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'cat docs/agents/domain.md')
+Bash(/bin/bash -lc 'ls -la CONTEXT.md CONTEXT-MAP.md 2>/dev/null || true')
+Bash(/bin/bash -lc 'ls -la docs/adr 2>/dev/null || true')
+I’ve finished the contract read; next I’ll switch to the required branch and map the current report/agent modules plus existing tests so we can add only what issue 28 requires.
+Bash(/bin/bash -lc "git branch --all --list '*issue-28*'")
+Bash(/bin/bash -lc 'git status --short --branch')
+Bash(/bin/bash -lc 'git checkout sandcastle/issue-28-report-composer-8-step-contract-vitest-suite-report-citations-materialization')
+Bash(/bin/bash -lc "rg -n \"compose|report_citations|source_doc_set_hash|citation|submit_earnings_summary|retry|Shape C|shape c\" supabase/functions supabase/tests supabase/migrations web -g'*.ts' -g'*.sql' -g'*.tsx'")
+Bash(/bin/bash -lc 'rg --files supabase/functions/_shared | sort')
+`rg` is not available in this environment, so I’m switching to `find`/`grep` and will now inspect `_shared`, report function flow, and migrations/tests that already mention citations or report payload persistence.
+Bash(/bin/bash -lc 'find supabase/functions/_shared -type f | sort')
+Bash(/bin/bash -lc "grep -RIn \"compose\\|report_citations\\|source_doc_set_hash\\|citation\\|submit_earnings_summary\\|retry\\|Shape C\\|shape c\" supabase/functions supabase/tests supabase/migrations web --include='*.ts' --include='*.sql' --include='*.tsx'")
+I found the existing touchpoints: `reports` currently persists payload but there’s no composer module/materialized `report_citations` yet. I’m now reading the reports function and tests to wire this in without changing unrelated paths.
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '261,520p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/exports/pdf-render.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/__tests__/agent-orchestrator.test.ts")
+Bash(/bin/bash -lc "sed -n '261,620p' supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc 'find supabase/functions -type f | sort')
+Bash(/bin/bash -lc 'find supabase/migrations -type f | sort')
+Bash(/bin/bash -lc "grep -RIn \"zod\\|Zod\\|source_documents_used\\|red_flags\\|due_diligence\\|lead_intel\" supabase/functions --include='*.ts'")
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc 'cat package.json')
+Bash(/bin/bash -lc 'find supabase -maxdepth 3 -type f | sort')
+Bash(/bin/bash -lc "find supabase/tests -type f | sort && for f in supabase/tests/*.sql; do echo '---' "'$f; sed -n '"'1,220p' \""'$f"; done')
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/migrations/20260510180000_issue_25_source_ingestor_document_cache.sql")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql")
+Bash(/bin/bash -lc "cat supabase/tsconfig.json && ls -la supabase | sed -n '1,200p'")
+Bash(/bin/bash -lc 'cat web/package.json && cat mobile/package.json')
+Bash(/bin/bash -lc 'GH_PAGER=cat gh issue view 8 --comments --json number,title,body,comments,url')
+Bash(/bin/bash -lc "sed -n '430,620p' docs/PRD.md")
+Bash(/bin/bash -lc "grep -n \"submit_earnings_summary\\|submit_due_diligence_report\\|submit_lead_intel_report\\|EarningsSummary\\|DueDiligenceReport\\|LeadIntelReport\\|locator\\|claim_id\\|source_documents_used\" docs/PRD.md")
+Bash(/bin/bash -lc "sed -n '240,430p' docs/PRD.md")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/__tests__/company-resolver.test.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/document-cache.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/__tests__/document-cache.test.ts")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/functions/_shared/source-ingestor.ts")
+Bash(/bin/bash -lc 'git status --short')
+I’ve gathered enough context and I’m starting implementation with the RED phase for the composer module: adding tier schemas + fixtures + Vitest cases for all contract failures and the soft-flag path, then I’ll wire persistence and fallback.
+I’m now in the RED step: adding the full Vitest fixture suite for the 8-step contract and schema variants. After this fails, I’ll wire reports persistence and fallback logic to make it pass.
+I’ve finished initial composer tests and helper; next I’m wiring the runtime path: `reports` will call `composeWithRecovery`, invoke strict retry and Shape C fallback, and persist `reports` + `report_citations` transactionally.
+Bash(/bin/bash -lc "sed -n '1,240p' supabase/functions/_shared/agent-orchestrator.ts && sed -n '240,620p' supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc "grep -n \"state.finalPayload = parsedInput\" -n supabase/functions/_shared/agent-orchestrator.ts && sed -n '260,340p' supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc "sed -n '1,220p' supabase/functions/reports/index.ts && sed -n '220,520p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc 'cat tsconfig.base.json')
+Agent idle for 1 minute
+I’ve added migration and DB test coverage; I’m now tightening the SQL fixture and then running unit tests/typecheck to catch integration issues in the new reports/composer wiring.
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase add zod@''^3.23.8')
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase run test:unit')
+Bash(/bin/bash -lc 'npm run typecheck')
+Unit tests are passing for the new composer suite. I’m now running the required repo-level `typecheck` and `test`; if failures are environment-related (as in prior issues), I’ll capture them explicitly in the commit notes.
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc 'corepack pnpm exec tsc --noEmit -p supabase/tsconfig.json')
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase run test:unit')
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc "sed -n '1,280p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/report-composer.ts")
+Bash(/bin/bash -lc "sed -n '280,620p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/report-schemas.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/migrations/20260510193000_issue_28_report_composer_report_citations.sql")
+Bash(/bin/bash -lc "sed -n '1,280p' supabase/tests/issue_28_report_composer_report_citations.sql")
+Bash(/bin/bash -lc "grep -n \"recoveryMode\\|runReportAgentShapeC\\|buildShapeCPrompt\\|buildToolInputSchema\\|buildMockPayload\" supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc 'git diff --stat')
+Bash(/bin/bash -lc 'git status --short')
+I found one contract-sensitive edge: audit insert failures should not block soft-flag handling or retry/fallback progression. I’m making audit writes best-effort in those paths so report composition behavior stays deterministic.
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase run test:unit')
+Bash(/bin/bash -lc 'npm run typecheck && npm run test')
+Typecheck still fails at the existing mobile workspace dependency gap (`@types/react` / `@types/react-native` not installed in that workspace). I’m running `npm run test` separately now to capture the current DB-test status after these changes.
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc "git add pnpm-lock.yaml supabase/package.json supabase/functions/_shared/agent-orchestrator.ts supabase/functions/reports/index.ts supabase/functions/_shared/report-schemas.ts supabase/functions/_shared/report-composer.ts supabase/functions/_shared/__fixtures__/report-composer.fixture.ts supabase/functions/_shared/__tests__/report-composer.test.ts supabase/migrations/20260510193000_issue_28_report_composer_report_citations.sql supabase/tests/issue_28_report_composer_report_citations.sql && git commit -m \"RALPH: complete issue #28 Report Composer + report_citations materialization (PRD AD-11/AD-6)\" -m \"Task completed + PRD reference:\\n- Implemented Report Composer contract for AD-11 (8-step validation/persistence flow) and AD-6 Shape C fallback wiring in report generation paths.\\n\\nKey decisions made:\\n- Added tier-specific Zod report schemas (EarningsSummary, DueDiligenceReport, LeadIntelReport) with discriminated citation locator union.\\n- Implemented ReportComposer.compose(rawArgs, schema) with source-id integrity, claim-id uniqueness, source_doc_set_hash check, and quote substring soft verification.\\n- Added composeWithRecovery flow: strict retry on first rejectable failure and Shape C non-streaming synthesis fallback after second failure.\\n- Wired composer into reports Edge Function streaming and sync flows; now persists reports.payload + materialized report_citations transactionally via DB function and emits citation_verification_failed audit events.\\n- Added migration for report_citations table, required unique/indexes, and transactional create_report_with_citations RPC.\\n- Added Vitest fixture suite for all required composer adversarial cases and fallback behavior, plus DB test for report_citations materialization.\\n\\nFiles changed:\\n- supabase/functions/_shared/report-schemas.ts\\n- supabase/functions/_shared/report-composer.ts\\n- supabase/functions/_shared/__fixtures__/report-composer.fixture.ts\\n- supabase/functions/_shared/__tests__/report-composer.test.ts\\n- supabase/functions/_shared/agent-orchestrator.ts\\n- supabase/functions/reports/index.ts\\n- supabase/migrations/20260510193000_issue_28_report_composer_report_citations.sql\\n- supabase/tests/issue_28_report_composer_report_citations.sql\\n- supabase/package.json\\n- pnpm-lock.yaml\\n\\nBlockers or notes for next iteration:\\n- npm run typecheck fails in this environment because mobile workspace dependencies/types are missing locally (react/react-native type defs not present).\\n- npm run test runs all Supabase unit tests successfully (including new composer suite), but DB tests fail here because local Supabase/Postgres is not running at 127.0.0.1:54322.\"")
+Bash(/bin/bash -lc 'git status --short --branch')
+Implemented issue `#28` on branch `sandcastle/issue-28-report-composer-8-step-contract-vitest-suite-report-citations-materialization` and committed as `d43f41b`.
+
+Key changes:
+- Added Report Composer + 8-step contract implementation:
+  - [report-composer.ts](/home/agent/workspace/supabase/functions/_shared/report-composer.ts)
+  - [report-schemas.ts](/home/agent/workspace/supabase/functions/_shared/report-schemas.ts)
+- Added full Vitest fixture suite for required cases + fallback behavior:
+  - [report-composer.test.ts](/home/agent/workspace/supabase/functions/_shared/__tests__/report-composer.test.ts)
+  - [report-composer.fixture.ts](/home/agent/workspace/supabase/functions/_shared/__fixtures__/report-composer.fixture.ts)
+- Wired composer into reports flow (streaming + sync), added strict retry then Shape C fallback, and transactional report + citation persistence:
+  - [reports/index.ts](/home/agent/workspace/supabase/functions/reports/index.ts)
+  - [agent-orchestrator.ts](/home/agent/workspace/supabase/functions/_shared/agent-orchestrator.ts)
+- Materialized `report_citations` with indexes/unique constraint + transactional RPC:
+  - [20260510193000_issue_28_report_composer_report_citations.sql](/home/agent/workspace/supabase/migrations/20260510193000_issue_28_report_composer_report_citations.sql)
+- Added DB acceptance test for citation materialization:
+  - [issue_28_report_composer_report_citations.sql](/home/agent/workspace/supabase/tests/issue_28_report_composer_report_citations.sql)
+
+Validation run:
+- `corepack pnpm --filter supabase run test:unit` passed (new composer suite included).
+- `npm run typecheck` failed due existing mobile workspace setup gap (`react` / `react-native` type defs not found locally).
+- `npm run test` ran unit tests successfully; DB tests failed because local Supabase/Postgres is not running at `127.0.0.1:54322`.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

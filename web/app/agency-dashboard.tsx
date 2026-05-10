@@ -88,9 +88,15 @@ export function AgencyDashboard({
   const [companyId, setCompanyId] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const authConfigured = supabase !== null;
 
   async function onCreateOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!supabase) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -118,6 +124,11 @@ export function AgencyDashboard({
 
   async function onCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!supabase) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -150,6 +161,11 @@ export function AgencyDashboard({
 
   async function onRunLeadIntel(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!supabase) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setStatus(null);
@@ -197,27 +213,48 @@ export function AgencyDashboard({
   const projectFlaggedQueue = projectAuditLog.filter((row) => row.flagged_for_review);
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
-      <section className="mx-auto max-w-5xl space-y-6">
-        <div className="space-y-1">
-          <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Diligence OS</p>
-          <h1 className="text-3xl font-semibold">Agency Dashboard</h1>
-          <p className="text-sm text-slate-300">Signed in as {userEmail}</p>
+    <section className="space-y-5">
+        <div className="section-card-strong">
+          <p className="eyebrow">Workspace</p>
+          <h2 className="section-title">Agency Dashboard</h2>
+          <p className="section-subtitle">Signed in as {userEmail}</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="metric-card">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Organizations</p>
+              <p className="mt-2 text-3xl font-black tracking-[-0.06em]">{organizations.length}</p>
+            </div>
+            <div className="metric-card">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Active role</p>
+              <p className="mt-2 text-lg font-black">{activeOrgRole ?? "unknown"}</p>
+            </div>
+            <div className="metric-card">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">Plan</p>
+              <p className="mt-2 text-lg font-black">{activeOrg?.plan ?? "none"}</p>
+            </div>
+          </div>
         </div>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
-          <h2 className="text-xl font-semibold">Create Organization</h2>
-          <p className="mt-1 text-sm text-slate-300">Includes Agency-tier plans (`org_type='agency'`).</p>
+        <section className="section-card space-y-4">
+          <div>
+            <p className="eyebrow">Admin</p>
+            <h2 className="section-title">Create Organization</h2>
+            <p className="section-subtitle">Includes Agency-tier plans (`org_type='agency'`).</p>
+          </div>
+          {!authConfigured ? (
+            <p className="status-warn">
+              Supabase auth is not configured, so agency actions are disabled.
+            </p>
+          ) : null}
           <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={onCreateOrganization}>
             <input
-              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+              className="field"
               onChange={(event) => setOrgName(event.target.value)}
               placeholder="Organization name"
               required
               value={orgName}
             />
             <select
-              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+              className="field"
               onChange={(event) => setOrgPlan(event.target.value)}
               value={orgPlan}
             >
@@ -226,21 +263,21 @@ export function AgencyDashboard({
               <option value="b2b_basic">B2B Basic</option>
             </select>
             <input
-              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+              className="field"
               onChange={(event) => setBillingEmail(event.target.value)}
               placeholder="Billing email"
               type="email"
               value={billingEmail}
             />
             <input
-              className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+              className="field"
               onChange={(event) => setGstin(event.target.value)}
               placeholder="GSTIN"
               value={gstin}
             />
             <button
-              className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
-              disabled={busy}
+              className="btn-primary"
+              disabled={busy || !authConfigured}
               type="submit"
             >
               Create Organization
@@ -248,29 +285,32 @@ export function AgencyDashboard({
           </form>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
-          <h2 className="text-xl font-semibold">Active Organization</h2>
-          <p className="mt-2 text-sm text-slate-300">
+        <section className="section-card">
+          <p className="eyebrow">Current scope</p>
+          <h2 className="section-title">Active Organization</h2>
+          <p className="mt-3 text-sm font-semibold">
             {activeOrg
               ? `${activeOrg.name} (${activeOrg.org_type}, ${activeOrg.plan})`
               : "No active organization claim found."}
           </p>
-          <p className="mt-2 text-xs text-slate-400">Active role: {activeOrgRole ?? "unknown"}</p>
-          <p className="mt-2 text-xs text-slate-400">Available orgs: {organizations.length}</p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-[var(--muted)]">
+            Active role: {activeOrgRole ?? "unknown"} · Available orgs: {organizations.length}
+          </p>
         </section>
 
         {isPlatformAdmin ? (
-          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
-            <h2 className="text-xl font-semibold">Operator Cost Dashboard</h2>
-            <p className="mt-1 text-sm text-slate-300">
-              Grouped by `agent_id`, `org_type`, and UTC day.
-            </p>
+          <section className="section-card space-y-4">
+            <div>
+              <p className="eyebrow">Platform admin</p>
+              <h2 className="section-title">Operator Cost Dashboard</h2>
+              <p className="section-subtitle">Grouped by `agent_id`, `org_type`, and UTC day.</p>
+            </div>
             {costDashboard.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-300">No cost rows for the selected window.</p>
+              <p className="section-subtitle">No cost rows for the selected window.</p>
             ) : (
-              <div className="mt-3 overflow-x-auto">
-                <table className="min-w-full text-left text-sm text-slate-200">
-                  <thead className="text-xs uppercase tracking-[0.12em] text-slate-400">
+              <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-white/50">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="text-xs uppercase tracking-[0.12em] text-[var(--muted)]">
                     <tr>
                       <th className="px-2 py-2">Day (UTC)</th>
                       <th className="px-2 py-2">Agent</th>
@@ -281,12 +321,12 @@ export function AgencyDashboard({
                   </thead>
                   <tbody>
                     {costDashboard.map((row) => (
-                      <tr className="border-t border-slate-800" key={`${row.day}-${row.agent_id}-${row.org_type}`}>
-                        <td className="px-2 py-2">{row.day}</td>
-                        <td className="px-2 py-2">{row.agent_id}</td>
-                        <td className="px-2 py-2">{row.org_type}</td>
-                        <td className="px-2 py-2">{row.run_count}</td>
-                        <td className="px-2 py-2">${row.total_cost.toFixed(4)}</td>
+                      <tr className="border-t border-[var(--line)]" key={`${row.day}-${row.agent_id}-${row.org_type}`}>
+                        <td className="px-3 py-2">{row.day}</td>
+                        <td className="px-3 py-2">{row.agent_id}</td>
+                        <td className="px-3 py-2">{row.org_type}</td>
+                        <td className="px-3 py-2">{row.run_count}</td>
+                        <td className="px-3 py-2">${row.total_cost.toFixed(4)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -297,22 +337,23 @@ export function AgencyDashboard({
         ) : null}
 
         {isOrgAdmin ? (
-          <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-5">
-            <h2 className="text-xl font-semibold">Organization Audit Log</h2>
-            <p className="text-sm text-slate-300">
-              Scrapes and agent runs with timestamps, source URLs, and costs.
-            </p>
+          <section className="section-card space-y-4">
+            <div>
+              <p className="eyebrow">Governance</p>
+              <h2 className="section-title">Organization Audit Log</h2>
+              <p className="section-subtitle">Scrapes and agent runs with timestamps, source URLs, and costs.</p>
+            </div>
             {orgAuditLog.length === 0 ? (
-              <p className="text-sm text-slate-300">No audit events available for this organization.</p>
+              <p className="section-subtitle">No audit events available for this organization.</p>
             ) : (
-              <ul className="space-y-2 text-sm text-slate-200">
+              <ul className="space-y-2">
                 {orgAuditLog.map((event) => (
-                  <li className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2" key={event.id}>
-                    <p className="font-mono text-xs text-slate-400">{event.created_at}</p>
+                  <li className="data-list-item" key={event.id}>
+                    <p className="font-mono text-xs text-[var(--muted)]">{event.created_at}</p>
                     <p>
                       {event.kind} · report {event.report_type ?? "n/a"} · project {event.project_id ?? "none"}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-[var(--muted)]">
                       source {event.source_url ?? "n/a"} · agent {event.agent_id ?? "n/a"} · cost{" "}
                       {event.cost === null ? "n/a" : `$${event.cost.toFixed(4)}`}
                     </p>
@@ -321,12 +362,12 @@ export function AgencyDashboard({
               </ul>
             )}
 
-            <div className="space-y-2 rounded-md border border-amber-400/40 bg-amber-500/10 p-3">
-              <h3 className="text-sm font-semibold text-amber-200">Flagged Review Queue</h3>
+            <div className="status-warn space-y-2">
+              <h3 className="text-sm font-black">Flagged Review Queue</h3>
               {flaggedQueue.length === 0 ? (
-                <p className="text-sm text-amber-100/90">No `citation_verification_failed` rows.</p>
+                <p>No `citation_verification_failed` rows.</p>
               ) : (
-                <ul className="space-y-2 text-sm text-amber-100">
+                <ul className="space-y-2">
                   {flaggedQueue.map((event) => (
                     <li key={event.id}>
                       {event.created_at} · project {event.project_id ?? "none"} · report {event.report_type ?? "n/a"}
@@ -339,15 +380,21 @@ export function AgencyDashboard({
         ) : null}
 
         {isAgency ? (
-          <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/80 p-5">
-            <h2 className="text-xl font-semibold">Agency Projects</h2>
+          <section className="section-card-strong space-y-5">
+            <div>
+              <p className="eyebrow">Client workbench</p>
+              <h2 className="section-title">Agency Projects</h2>
+              <p className="section-subtitle">
+                Create scoped projects, run lead-intel jobs, and filter reports by client.
+              </p>
+            </div>
 
             <div className="space-y-2">
-              <label className="text-sm text-slate-300" htmlFor="project-switcher">
+              <label className="text-sm font-bold text-[var(--muted)]" htmlFor="project-switcher">
                 Project switcher
               </label>
               <select
-                className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+                className="field"
                 id="project-switcher"
                 onChange={(event) => onProjectChange(event.target.value)}
                 value={selectedProjectId ?? ""}
@@ -363,22 +410,22 @@ export function AgencyDashboard({
 
             <form className="grid gap-3 md:grid-cols-3" onSubmit={onCreateProject}>
               <input
-                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+                className="field"
                 onChange={(event) => setProjectName(event.target.value)}
                 placeholder="Client name"
                 required
                 value={projectName}
               />
               <input
-                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+                className="field"
                 onChange={(event) => setProjectSlug(event.target.value)}
                 placeholder="client-slug"
                 required
                 value={projectSlug}
               />
               <button
-                className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
-                disabled={busy}
+                className="btn-primary"
+                disabled={busy || !authConfigured}
                 type="submit"
               >
                 Create Project
@@ -387,34 +434,34 @@ export function AgencyDashboard({
 
             <form className="grid gap-3 md:grid-cols-3" onSubmit={onRunLeadIntel}>
               <input
-                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-2 md:col-span-2"
+                className="field md:col-span-2"
                 onChange={(event) => setCompanyId(event.target.value)}
                 placeholder="Company UUID for lead intel run"
                 required
                 value={companyId}
               />
               <button
-                className="rounded-md border border-slate-500 px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                disabled={busy || !selectedProjectId}
+                className="btn-secondary"
+                disabled={busy || !selectedProjectId || !authConfigured}
                 type="submit"
               >
                 Run Lead Intel
               </button>
             </form>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs font-semibold text-[var(--muted)]">
               Lead Intel runs are project-scoped and filtered by `project_id`.
             </p>
 
             <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Reports</h3>
+              <h3 className="text-lg font-black tracking-[-0.03em]">Reports</h3>
               {reports.length === 0 ? (
-                <p className="text-sm text-slate-300">No reports in this filter.</p>
+                <p className="section-subtitle">No reports in this filter.</p>
               ) : (
-                <ul className="space-y-2 text-sm text-slate-200">
+                <ul className="grid gap-2 md:grid-cols-2">
                   {reports.map((report) => (
-                    <li className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2" key={report.id}>
-                      <span className="font-mono text-xs text-slate-400">{report.id}</span>
-                      <p>
+                    <li className="data-list-item" key={report.id}>
+                      <span className="font-mono text-xs text-[var(--muted)]">{report.id}</span>
+                      <p className="font-semibold">
                         {report.report_type} · {report.status} · project {report.project_id ?? "none"}
                       </p>
                     </li>
@@ -424,23 +471,23 @@ export function AgencyDashboard({
             </div>
 
             {isOrgAdmin ? (
-              <div className="space-y-3 rounded-md border border-slate-800 bg-slate-950/60 p-3">
-                <h3 className="text-lg font-semibold">Project Audit Log</h3>
-                <p className="text-sm text-slate-300">Filtered by current `project_id` selection.</p>
+              <div className="space-y-3 rounded-3xl border border-[var(--line)] bg-white/45 p-4">
+                <h3 className="text-lg font-black tracking-[-0.03em]">Project Audit Log</h3>
+                <p className="section-subtitle">Filtered by current `project_id` selection.</p>
                 {!selectedProjectId ? (
-                  <p className="text-sm text-slate-300">Select a project to load project-scoped audit events.</p>
+                  <p className="section-subtitle">Select a project to load project-scoped audit events.</p>
                 ) : projectAuditLog.length === 0 ? (
-                  <p className="text-sm text-slate-300">No audit events in this project.</p>
+                  <p className="section-subtitle">No audit events in this project.</p>
                 ) : (
-                  <ul className="space-y-2 text-sm text-slate-200">
+                  <ul className="space-y-2">
                     {projectAuditLog.map((event) => (
-                      <li className="rounded border border-slate-800 bg-slate-900/80 px-3 py-2" key={event.id}>
-                        <p className="font-mono text-xs text-slate-400">{event.created_at}</p>
-                        <p>
+                      <li className="data-list-item" key={event.id}>
+                        <p className="font-mono text-xs text-[var(--muted)]">{event.created_at}</p>
+                        <p className="font-semibold">
                           {event.kind} · report {event.report_type ?? "n/a"} · cost{" "}
                           {event.cost === null ? "n/a" : `$${event.cost.toFixed(4)}`}
                         </p>
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-[var(--muted)]">
                           source {event.source_url ?? "n/a"} · agent {event.agent_id ?? "n/a"}
                         </p>
                       </li>
@@ -448,14 +495,14 @@ export function AgencyDashboard({
                   </ul>
                 )}
                 {selectedProjectId ? (
-                  <div className="space-y-1 rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-200">
+                  <div className="status-warn space-y-1">
+                    <p className="text-xs font-black uppercase tracking-[0.12em]">
                       Project Review Queue
                     </p>
                     {projectFlaggedQueue.length === 0 ? (
-                      <p className="text-sm text-amber-100/90">No flagged citation verification failures.</p>
+                      <p>No flagged citation verification failures.</p>
                     ) : (
-                      <ul className="space-y-1 text-sm text-amber-100">
+                      <ul className="space-y-1">
                         {projectFlaggedQueue.map((event) => (
                           <li key={event.id}>{event.created_at} · {event.id}</li>
                         ))}
@@ -467,17 +514,17 @@ export function AgencyDashboard({
             ) : null}
           </section>
         ) : (
-          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
-            <h2 className="text-xl font-semibold">Agency View</h2>
-            <p className="text-sm text-slate-300">
+          <section className="section-card">
+            <p className="eyebrow">Client workbench</p>
+            <h2 className="section-title">Agency View</h2>
+            <p className="section-subtitle">
               Switch to an agency org session to view project switcher and project-scoped reports.
             </p>
           </section>
         )}
 
-        {status ? <p className="text-sm text-emerald-400">{status}</p> : null}
-        {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+        {status ? <p className="status-success">{status}</p> : null}
+        {error ? <p className="status-error">{error}</p> : null}
       </section>
-    </main>
   );
 }

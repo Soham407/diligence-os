@@ -24,14 +24,21 @@ type CanonicalCompany = {
 
 export function CompanyResolverPanel() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const supabaseEnv = useMemo(() => getSupabaseEnv(), []);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [company, setCompany] = useState<CanonicalCompany | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const authConfigured = supabase !== null && supabaseEnv !== null;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!authConfigured || !supabase || !supabaseEnv) {
+      setError("Supabase auth is not configured.");
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setSubmitted(false);
@@ -47,7 +54,7 @@ export function CompanyResolverPanel() {
       return;
     }
 
-    const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv();
+    const { supabaseUrl, supabaseAnonKey } = supabaseEnv;
 
     const response = await fetch(`${supabaseUrl}/functions/v1/companies/resolve`, {
       method: "POST",
@@ -74,48 +81,57 @@ export function CompanyResolverPanel() {
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
-      <h2 className="text-2xl font-semibold">Company Resolver</h2>
-      <p className="text-sm text-slate-300">Resolve ticker/name/CIN/ISIN into canonical company metadata.</p>
+    <section className="section-card space-y-4">
+      <div>
+        <p className="eyebrow">Entity graph</p>
+        <h2 className="section-title">Company Resolver</h2>
+        <p className="section-subtitle">Resolve ticker/name/CIN/ISIN into canonical company metadata.</p>
+      </div>
+      {!authConfigured ? (
+        <p className="status-warn">
+          Supabase auth is not configured, so resolver lookup is disabled.
+        </p>
+      ) : null}
 
       <form className="flex flex-col gap-3 md:flex-row" onSubmit={onSubmit}>
         <input
-          className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+          className="field flex-1"
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Try ALPHA, 532100, INELOTUS00029, or company name"
           required
           value={query}
         />
         <button
-          className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
-          disabled={busy}
+          className="btn-primary"
+          disabled={busy || !authConfigured}
           type="submit"
         >
           Resolve
         </button>
       </form>
 
-      {submitted && !company ? <p className="text-sm text-amber-200">No canonical company match found.</p> : null}
+      {submitted && !company ? <p className="status-warn">No canonical company match found.</p> : null}
 
       {company ? (
-        <div className="space-y-2 rounded-md border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-200">
+        <div className="space-y-2 rounded-2xl border border-[var(--line)] bg-white/55 p-4 text-sm">
           <p>
-            <span className="text-slate-400">Company ID:</span> {company.id}
+            <span className="font-bold text-[var(--muted)]">Company ID:</span> {company.id}
           </p>
           <p>
-            <span className="text-slate-400">Legal Name:</span> {company.legal_name}
+            <span className="font-bold text-[var(--muted)]">Legal Name:</span> {company.legal_name}
           </p>
           <p>
-            <span className="text-slate-400">Display Name:</span> {company.display_name}
+            <span className="font-bold text-[var(--muted)]">Display Name:</span> {company.display_name}
           </p>
           <p>
-            <span className="text-slate-400">Sector:</span> {company.sector ?? "-"}
+            <span className="font-bold text-[var(--muted)]">Sector:</span> {company.sector ?? "-"}
           </p>
           <p>
-            <span className="text-slate-400">Listing Status:</span> {company.listing_status ?? "-"}
+            <span className="font-bold text-[var(--muted)]">Listing Status:</span>{" "}
+            {company.listing_status ?? "-"}
           </p>
           <p>
-            <span className="text-slate-400">Primary Security:</span>{" "}
+            <span className="font-bold text-[var(--muted)]">Primary Security:</span>{" "}
             {company.primary_security
               ? `${company.primary_security.isin} | NSE ${company.primary_security.nse_symbol ?? "-"} | BSE ${company.primary_security.bse_code ?? "-"}`
               : "-"}
@@ -123,7 +139,7 @@ export function CompanyResolverPanel() {
         </div>
       ) : null}
 
-      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      {error ? <p className="status-error">{error}</p> : null}
     </section>
   );
 }
