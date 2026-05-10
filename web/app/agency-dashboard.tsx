@@ -26,22 +26,52 @@ type ReportRow = {
   created_at: string;
 };
 
+type AuditLogRow = {
+  id: string;
+  created_at: string;
+  kind: string;
+  project_id: string | null;
+  source_url: string | null;
+  cost: number | null;
+  agent_id: string | null;
+  report_type: string | null;
+  flagged_for_review: boolean;
+};
+
+type CostDashboardRow = {
+  day: string;
+  agent_id: string;
+  org_type: string;
+  total_cost: number;
+  run_count: number;
+};
+
 type AgencyDashboardProps = {
   userEmail: string;
   activeOrg: Organization | null;
+  activeOrgRole: string | null;
+  isPlatformAdmin: boolean;
   organizations: Organization[];
   projects: Project[];
   reports: ReportRow[];
   selectedProjectId: string | null;
+  costDashboard: CostDashboardRow[];
+  orgAuditLog: AuditLogRow[];
+  projectAuditLog: AuditLogRow[];
 };
 
 export function AgencyDashboard({
   userEmail,
   activeOrg,
+  activeOrgRole,
+  isPlatformAdmin,
   organizations,
   projects,
   reports,
-  selectedProjectId
+  selectedProjectId,
+  costDashboard,
+  orgAuditLog,
+  projectAuditLog
 }: AgencyDashboardProps) {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const router = useRouter();
@@ -162,6 +192,9 @@ export function AgencyDashboard({
   }
 
   const isAgency = activeOrg?.org_type === "agency";
+  const isOrgAdmin = activeOrgRole === "admin";
+  const flaggedQueue = orgAuditLog.filter((row) => row.flagged_for_review);
+  const projectFlaggedQueue = projectAuditLog.filter((row) => row.flagged_for_review);
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
@@ -222,8 +255,88 @@ export function AgencyDashboard({
               ? `${activeOrg.name} (${activeOrg.org_type}, ${activeOrg.plan})`
               : "No active organization claim found."}
           </p>
+          <p className="mt-2 text-xs text-slate-400">Active role: {activeOrgRole ?? "unknown"}</p>
           <p className="mt-2 text-xs text-slate-400">Available orgs: {organizations.length}</p>
         </section>
+
+        {isPlatformAdmin ? (
+          <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">
+            <h2 className="text-xl font-semibold">Operator Cost Dashboard</h2>
+            <p className="mt-1 text-sm text-slate-300">
+              Grouped by `agent_id`, `org_type`, and UTC day.
+            </p>
+            {costDashboard.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-300">No cost rows for the selected window.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-full text-left text-sm text-slate-200">
+                  <thead className="text-xs uppercase tracking-[0.12em] text-slate-400">
+                    <tr>
+                      <th className="px-2 py-2">Day (UTC)</th>
+                      <th className="px-2 py-2">Agent</th>
+                      <th className="px-2 py-2">Org type</th>
+                      <th className="px-2 py-2">Runs</th>
+                      <th className="px-2 py-2">Cost (USD)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costDashboard.map((row) => (
+                      <tr className="border-t border-slate-800" key={`${row.day}-${row.agent_id}-${row.org_type}`}>
+                        <td className="px-2 py-2">{row.day}</td>
+                        <td className="px-2 py-2">{row.agent_id}</td>
+                        <td className="px-2 py-2">{row.org_type}</td>
+                        <td className="px-2 py-2">{row.run_count}</td>
+                        <td className="px-2 py-2">${row.total_cost.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {isOrgAdmin ? (
+          <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-5">
+            <h2 className="text-xl font-semibold">Organization Audit Log</h2>
+            <p className="text-sm text-slate-300">
+              Scrapes and agent runs with timestamps, source URLs, and costs.
+            </p>
+            {orgAuditLog.length === 0 ? (
+              <p className="text-sm text-slate-300">No audit events available for this organization.</p>
+            ) : (
+              <ul className="space-y-2 text-sm text-slate-200">
+                {orgAuditLog.map((event) => (
+                  <li className="rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2" key={event.id}>
+                    <p className="font-mono text-xs text-slate-400">{event.created_at}</p>
+                    <p>
+                      {event.kind} · report {event.report_type ?? "n/a"} · project {event.project_id ?? "none"}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      source {event.source_url ?? "n/a"} · agent {event.agent_id ?? "n/a"} · cost{" "}
+                      {event.cost === null ? "n/a" : `$${event.cost.toFixed(4)}`}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="space-y-2 rounded-md border border-amber-400/40 bg-amber-500/10 p-3">
+              <h3 className="text-sm font-semibold text-amber-200">Flagged Review Queue</h3>
+              {flaggedQueue.length === 0 ? (
+                <p className="text-sm text-amber-100/90">No `citation_verification_failed` rows.</p>
+              ) : (
+                <ul className="space-y-2 text-sm text-amber-100">
+                  {flaggedQueue.map((event) => (
+                    <li key={event.id}>
+                      {event.created_at} · project {event.project_id ?? "none"} · report {event.report_type ?? "n/a"}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+        ) : null}
 
         {isAgency ? (
           <section className="space-y-5 rounded-xl border border-slate-800 bg-slate-900/80 p-5">
@@ -309,6 +422,49 @@ export function AgencyDashboard({
                 </ul>
               )}
             </div>
+
+            {isOrgAdmin ? (
+              <div className="space-y-3 rounded-md border border-slate-800 bg-slate-950/60 p-3">
+                <h3 className="text-lg font-semibold">Project Audit Log</h3>
+                <p className="text-sm text-slate-300">Filtered by current `project_id` selection.</p>
+                {!selectedProjectId ? (
+                  <p className="text-sm text-slate-300">Select a project to load project-scoped audit events.</p>
+                ) : projectAuditLog.length === 0 ? (
+                  <p className="text-sm text-slate-300">No audit events in this project.</p>
+                ) : (
+                  <ul className="space-y-2 text-sm text-slate-200">
+                    {projectAuditLog.map((event) => (
+                      <li className="rounded border border-slate-800 bg-slate-900/80 px-3 py-2" key={event.id}>
+                        <p className="font-mono text-xs text-slate-400">{event.created_at}</p>
+                        <p>
+                          {event.kind} · report {event.report_type ?? "n/a"} · cost{" "}
+                          {event.cost === null ? "n/a" : `$${event.cost.toFixed(4)}`}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          source {event.source_url ?? "n/a"} · agent {event.agent_id ?? "n/a"}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {selectedProjectId ? (
+                  <div className="space-y-1 rounded border border-amber-400/40 bg-amber-500/10 px-3 py-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-200">
+                      Project Review Queue
+                    </p>
+                    {projectFlaggedQueue.length === 0 ? (
+                      <p className="text-sm text-amber-100/90">No flagged citation verification failures.</p>
+                    ) : (
+                      <ul className="space-y-1 text-sm text-amber-100">
+                        {projectFlaggedQueue.map((event) => (
+                          <li key={event.id}>{event.created_at} · {event.id}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </section>
         ) : (
           <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-5">

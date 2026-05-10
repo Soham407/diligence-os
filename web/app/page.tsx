@@ -8,6 +8,39 @@ type SearchParams = {
   projectId?: string;
 };
 
+type AuditLogRow = {
+  id: string;
+  created_at: string;
+  kind: string;
+  project_id: string | null;
+  source_url: string | null;
+  cost: number | null;
+  agent_id: string | null;
+  report_type: string | null;
+  flagged_for_review: boolean;
+};
+
+type CostDashboardRow = {
+  day: string;
+  agent_id: string;
+  org_type: string;
+  total_cost: number;
+  run_count: number;
+};
+
+function coerceNullableNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
 export default async function Home({
   searchParams
 }: {
@@ -88,6 +121,10 @@ export default async function Home({
   }
 
   const activeOrg = organizations.find((organization) => organization.id === activeOrgId) ?? null;
+  const activeMembership = authMemberships.find((membership) => membership.orgId === activeOrgId) ?? null;
+  const isActiveOrgAdmin = activeMembership?.role === "admin";
+  const isPlatformAdmin =
+    user.app_metadata?.platform_admin === true || user.app_metadata?.platform_admin === "true";
 
   let projects: Array<{ id: string; client_name: string; client_slug: string; created_at: string }> = [];
   let reports: Array<{
@@ -97,6 +134,9 @@ export default async function Home({
     status: string;
     created_at: string;
   }> = [];
+  let orgAuditLog: AuditLogRow[] = [];
+  let projectAuditLog: AuditLogRow[] = [];
+  let costDashboard: CostDashboardRow[] = [];
 
   if (activeOrg?.org_type === "agency") {
     const { data: projectRows } = await supabase
@@ -123,6 +163,39 @@ export default async function Home({
     reports = reportRows ?? [];
   }
 
+  if (isActiveOrgAdmin) {
+    const { data: orgAuditRows } = await supabase.rpc("get_org_audit_log", {
+      p_project_id: null,
+      p_limit: 100
+    });
+    orgAuditLog = ((orgAuditRows as AuditLogRow[] | null) ?? []).map((row) => ({
+      ...row,
+      cost: coerceNullableNumber(row.cost)
+    }));
+
+    if (activeOrg?.org_type === "agency" && params.projectId) {
+      const { data: projectAuditRows } = await supabase.rpc("get_org_audit_log", {
+        p_project_id: params.projectId,
+        p_limit: 100
+      });
+      projectAuditLog = ((projectAuditRows as AuditLogRow[] | null) ?? []).map((row) => ({
+        ...row,
+        cost: coerceNullableNumber(row.cost)
+      }));
+    }
+  }
+
+  if (isPlatformAdmin) {
+    const { data: costRows } = await supabase.rpc("get_internal_cost_dashboard", {
+      p_days: 30
+    });
+    costDashboard = ((costRows as CostDashboardRow[] | null) ?? []).map((row) => ({
+      ...row,
+      total_cost: coerceNullableNumber(row.total_cost) ?? 0,
+      run_count: Number(row.run_count) || 0
+    }));
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100">
       <section className="mx-auto max-w-5xl space-y-6">
@@ -139,6 +212,11 @@ export default async function Home({
           projects={projects}
           reports={reports}
           selectedProjectId={params.projectId ?? null}
+          activeOrgRole={activeMembership?.role ?? null}
+          isPlatformAdmin={Boolean(isPlatformAdmin)}
+          costDashboard={costDashboard}
+          orgAuditLog={orgAuditLog}
+          projectAuditLog={projectAuditLog}
           userEmail={user.email}
         />
         <ReportPanel />
