@@ -19,6 +19,7 @@ import {
   EarningsSummarySchema,
   LeadIntelReportSchema
 } from "../_shared/report-schemas.ts";
+import { createJobRunner } from "../_shared/job-runner.ts";
 import { createSourceIngestor } from "../_shared/source-ingestor.ts";
 import { createServiceClient, createUserClient } from "../_shared/supabase.ts";
 
@@ -204,6 +205,67 @@ Deno.serve(async (request) => {
     return jsonResponse(404, { error: "Company not found" });
   }
 
+  const { error: usageError } = await serviceClient.from("usage_events").insert({
+    org_id: activeOrgId,
+    user_id: user.id,
+    action: entitlementAction,
+    metadata: {
+      report_type: body.report_type,
+      company_id: body.company_id,
+      project_id: projectId,
+      cache_bypass: bypassCache
+    }
+  });
+
+  if (usageError) {
+    return jsonResponse(500, { error: usageError.message });
+  }
+
+  if (body.report_type === "due_diligence") {
+    const agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
+    const { data: pendingReport, error: pendingReportError } = await serviceClient
+      .from("reports")
+      .insert({
+        org_id: activeOrgId,
+        project_id: projectId,
+        company_id: companyRow.id,
+        report_type: body.report_type,
+        composition_id: null,
+        source_doc_set_hash: "pending",
+        agent_version: agentVersion,
+        status: "pending",
+        payload: null,
+        created_by: user.id
+      })
+      .select("id, org_id, project_id, company_id, report_type, composition_id, status, created_at")
+      .single();
+
+    if (pendingReportError || !pendingReport) {
+      return jsonResponse(500, {
+        error: pendingReportError?.message ?? "Failed to create pending report"
+      });
+    }
+
+    const jobRunner = createJobRunner(serviceClient);
+    const queuedJob = await jobRunner.enqueue({
+      orgId: activeOrgId,
+      reportId: pendingReport.id,
+      spec: {
+        report_type: body.report_type,
+        company_id: companyRow.id,
+        custom_sources: customSources,
+        project_id: projectId,
+        actor_id: user.id
+      }
+    });
+
+    return jsonResponse(202, {
+      mode: "job",
+      report_id: pendingReport.id,
+      job_id: queuedJob.id
+    });
+  }
+
   const sourceIngestor = createSourceIngestor(serviceClient);
   const ingestedSources = await sourceIngestor.fetchSources({
     company_id: companyRow.id,
@@ -228,22 +290,6 @@ Deno.serve(async (request) => {
       raw_content: source.raw_content
     }))
   });
-
-  const { error: usageError } = await serviceClient.from("usage_events").insert({
-    org_id: activeOrgId,
-    user_id: user.id,
-    action: entitlementAction,
-    metadata: {
-      report_type: body.report_type,
-      company_id: body.company_id,
-      project_id: projectId,
-      cache_bypass: bypassCache
-    }
-  });
-
-  if (usageError) {
-    return jsonResponse(500, { error: usageError.message });
-  }
 
   const schema = reportSchemaForType(body.report_type);
 

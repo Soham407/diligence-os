@@ -20,6 +20,13 @@ type StreamUsage = {
   outputTokens: number | null;
 };
 
+type JobEventRow = {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export function ReportPanel() {
   const supabase = useMemo(() => getSupabaseBrowserClient(), []);
   const { supabaseUrl, supabaseAnonKey } = useMemo(() => getSupabaseEnv(), []);
@@ -33,11 +40,69 @@ export function ReportPanel() {
   const [finalPayload, setFinalPayload] = useState<Record<string, unknown> | null>(null);
   const [latestReportId, setLatestReportId] = useState<string | null>(null);
   const [usage, setUsage] = useState<StreamUsage>({ inputTokens: null, outputTokens: null });
+  const [dueDiligenceCompanyId, setDueDiligenceCompanyId] = useState("");
+  const [dueDiligenceBusy, setDueDiligenceBusy] = useState(false);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [activeDueDiligenceReportId, setActiveDueDiligenceReportId] = useState<string | null>(null);
+  const [dueDiligenceStatus, setDueDiligenceStatus] = useState<string | null>(null);
+  const [jobEvents, setJobEvents] = useState<JobEventRow[]>([]);
+  const [dueDiligencePayload, setDueDiligencePayload] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     void loadMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!activeJobId) return;
+
+    const channel = supabase
+      .channel(`due-diligence-job-${activeJobId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "job_events",
+          filter: `job_id=eq.${activeJobId}`
+        },
+        (payload) => {
+          const next = payload.new as JobEventRow;
+          setJobEvents((current) => {
+            if (current.some((entry) => entry.id === next.id)) return current;
+            return [...current, next];
+          });
+          setDueDiligenceStatus(`Job event: ${next.kind}`);
+        }
+      );
+
+    if (activeDueDiligenceReportId) {
+      channel.on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "reports",
+          filter: `id=eq.${activeDueDiligenceReportId}`
+        },
+        (payload) => {
+          const report = payload.new as { status?: string; payload?: Record<string, unknown> | null };
+          if (report.status) {
+            setDueDiligenceStatus(`Report status: ${report.status}`);
+          }
+          if (report.payload && typeof report.payload === "object") {
+            setDueDiligencePayload(report.payload);
+          }
+        }
+      );
+    }
+
+    void channel.subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [activeDueDiligenceReportId, activeJobId, supabase]);
 
   async function loadMe() {
     setLoading(true);
@@ -275,6 +340,60 @@ export function ReportPanel() {
     await loadMe();
   }
 
+  async function runDueDiligenceJob() {
+    const trimmedCompanyId = dueDiligenceCompanyId.trim();
+    if (!trimmedCompanyId) {
+      setError("Enter a company UUID for due diligence.");
+      return;
+    }
+
+    setDueDiligenceBusy(true);
+    setError(null);
+    setDueDiligenceStatus("Submitting due diligence job...");
+    setDueDiligencePayload(null);
+    setActiveJobId(null);
+    setActiveDueDiligenceReportId(null);
+    setJobEvents([]);
+
+    const { data, error: fnError } = await supabase.functions.invoke("reports", {
+      body: {
+        company_id: trimmedCompanyId,
+        report_type: "due_diligence"
+      }
+    });
+
+    if (fnError) {
+      setDueDiligenceBusy(false);
+      setError(fnError.message);
+      await loadMe();
+      return;
+    }
+
+    if (data?.error) {
+      setDueDiligenceBusy(false);
+      setError(typeof data.error === "string" ? data.error : data.error.message ?? "Request failed");
+      await loadMe();
+      return;
+    }
+
+    const reportId = typeof data?.report_id === "string" ? data.report_id : null;
+    const jobId = typeof data?.job_id === "string" ? data.job_id : null;
+
+    if (!reportId || !jobId) {
+      setDueDiligenceBusy(false);
+      setError("Job response missing report_id or job_id.");
+      await loadMe();
+      return;
+    }
+
+    setActiveDueDiligenceReportId(reportId);
+    setActiveJobId(jobId);
+    setDueDiligenceStatus(`Queued job ${jobId} for report ${reportId}`);
+    setDueDiligenceCompanyId("");
+    setDueDiligenceBusy(false);
+    await loadMe();
+  }
+
   const remaining = me?.quotas_remaining["reports.earnings_summary"] ?? 0;
   const showUpsell = !loading && remaining <= 0;
 
@@ -353,6 +472,46 @@ export function ReportPanel() {
           </pre>
         </div>
       ) : null}
+
+      <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
+        <p className="text-sm font-semibold text-slate-100">B2B Due Diligence (job + realtime)</p>
+        <input
+          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
+          disabled={dueDiligenceBusy || loading}
+          onChange={(event) => setDueDiligenceCompanyId(event.target.value)}
+          placeholder="Company UUID for due diligence"
+          type="text"
+          value={dueDiligenceCompanyId}
+        />
+        <button
+          className="rounded-md border border-slate-500 px-4 py-2 text-sm font-semibold disabled:opacity-60"
+          disabled={dueDiligenceBusy || loading}
+          onClick={runDueDiligenceJob}
+          type="button"
+        >
+          Run due diligence (job mode)
+        </button>
+        {dueDiligenceStatus ? <p className="text-sm text-emerald-400">{dueDiligenceStatus}</p> : null}
+        {activeJobId ? <p className="text-xs text-slate-400">Active job: {activeJobId}</p> : null}
+        {activeDueDiligenceReportId ? (
+          <p className="text-xs text-slate-400">Report: {activeDueDiligenceReportId}</p>
+        ) : null}
+        {jobEvents.length > 0 ? (
+          <ul className="space-y-2 text-xs text-slate-300">
+            {jobEvents.map((event) => (
+              <li className="rounded border border-slate-800 bg-slate-900/80 px-2 py-1" key={event.id}>
+                <p className="font-mono text-slate-400">{event.created_at}</p>
+                <p>{event.kind}</p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {dueDiligencePayload ? (
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs text-slate-200">
+            {JSON.stringify(dueDiligencePayload, null, 2)}
+          </pre>
+        ) : null}
+      </div>
     </section>
   );
 }
