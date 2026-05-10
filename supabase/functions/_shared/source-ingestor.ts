@@ -2,6 +2,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.8
 import { DocumentCache, type CachedDocument, type GetOrFetchOptions, type ScrapeResult, type SourceKind } from "./document-cache.ts";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const GROQ_MODEL = "llama3-70b-8192";
 
 type SourceIngestorDeps = {
   documentCache: DocumentCache;
@@ -78,7 +79,7 @@ function resolveSourceUrls(input: FetchSourcesInput): string[] {
 }
 
 async function scrapeWithScrapeGraph(input: { source_url: string; kind: SourceKind }): Promise<ScrapeResult> {
-  const apiKey = Deno.env.get("SCRAPEGRAPH_API_KEY");
+  const apiKey = Deno.env.get("SGAI_API_KEY") ?? Deno.env.get("SCRAPEGRAPH_API_KEY");
   const apiUrl = Deno.env.get("SCRAPEGRAPH_API_URL") ?? "https://api.scrapegraphai.com/v1/scrape";
 
   if (!apiKey) {
@@ -126,17 +127,83 @@ async function scrapeWithScrapeGraph(input: { source_url: string; kind: SourceKi
     throw new Error("ScrapeGraphAI response did not include raw content");
   }
 
+  const groqApiKey = Deno.env.get("GROQ_API_KEY");
+  const normalizedContent = groqApiKey
+    ? await normalizeContentWithGroq({
+        groqApiKey,
+        sourceUrl: input.source_url,
+        kind: input.kind,
+        rawContent
+      })
+    : rawContent;
+
   return {
-    raw_content: rawContent,
+    raw_content: normalizedContent,
     scrape_request_id: body.scrape_request_id ?? body.request_id ?? null,
     cost: typeof body.cost === "number" ? body.cost : null,
     metadata: {
       provider: "scrapegraphai",
       mode: "api",
       source_kind: input.kind,
+      ...(groqApiKey
+        ? {
+            llm_provider: "groq",
+            llm_model: `groq/${GROQ_MODEL}`
+          }
+        : {}),
       ...(body.metadata ?? {})
     }
   };
+}
+
+async function normalizeContentWithGroq(input: {
+  groqApiKey: string;
+  sourceUrl: string;
+  kind: SourceKind;
+  rawContent: string;
+}): Promise<string> {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${input.groqApiKey}`
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You clean scraped web content for downstream extraction. Return only the cleaned text, no commentary, no code fences."
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            source_url: input.sourceUrl,
+            source_kind: input.kind,
+            content: input.rawContent.slice(0, 12000)
+          })
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Groq normalization failed (${response.status}): ${details}`);
+  }
+
+  const body = (await response.json()) as {
+    choices?: Array<{
+      message?: {
+        content?: string | null;
+      };
+    }>;
+  };
+
+  const content = body.choices?.[0]?.message?.content?.trim();
+  return content && content.length > 0 ? content : input.rawContent;
 }
 
 export class SourceIngestor {

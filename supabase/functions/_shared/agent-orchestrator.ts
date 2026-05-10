@@ -137,7 +137,7 @@ function getCostRates(): CostRates {
 }
 
 function getGeminiModel(): string {
-  return Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+  return Deno.env.get("GEMINI_MODEL") ?? "gemini-1.5-pro-latest";
 }
 
 function getGeminiAgentId(reportType: ReportType): string {
@@ -523,7 +523,7 @@ function extractGeminiUsage(body: {
   };
 }
 
-async function callGeminiReport(
+async function callGeminiAgent(
   input: AgentRunInput,
   toolName: string,
   agentId: string,
@@ -550,7 +550,7 @@ async function callGeminiReport(
         ],
         generationConfig: {
           responseMimeType: "application/json",
-          responseJsonSchema: buildToolInputSchema()
+          responseSchema: buildToolInputSchema()
         }
       })
     }
@@ -729,7 +729,7 @@ async function callGeminiReportStream(
   geminiApiKey: string
 ): Promise<{ stream: ReadableStream<Uint8Array>; completion: Promise<AgentCompletion> }> {
   const startedAtMs = Date.now();
-  const { payload, usage } = await callGeminiReport(input, toolName, agentId, geminiApiKey);
+  const { payload, usage } = await callGeminiAgent(input, toolName, agentId, geminiApiKey);
 
   return {
     stream: createSseStream(
@@ -831,7 +831,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   }
 
   const { payload, usage } = geminiApiKey
-    ? await callGeminiReport(input, toolName, agentId, geminiApiKey)
+    ? await callGeminiAgent(input, toolName, agentId, geminiApiKey)
     : { payload: buildMockPayload(input), usage: { inputTokens: 1200, outputTokens: 340 } };
 
   return {
