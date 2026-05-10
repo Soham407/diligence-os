@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { Entitlements } from "../_shared/entitlements.ts";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { runReportAgent, type ReportType } from "../_shared/agent-orchestrator.ts";
+import { createSourceIngestor } from "../_shared/source-ingestor.ts";
 import { createServiceClient, createUserClient } from "../_shared/supabase.ts";
 
 type CreateReportBody = {
@@ -114,54 +115,20 @@ Deno.serve(async (request) => {
     return jsonResponse(404, { error: "Company not found" });
   }
 
-  const sourceDocumentIds: string[] = [];
-
-  for (const sourceUrl of customSources) {
-    const fetchedWindow = new Date().toISOString().slice(0, 13);
-    const { data: existingDoc } = await serviceClient
-      .from("source_documents")
-      .select("id")
-      .eq("source_url", sourceUrl)
-      .eq("fetched_at_window", fetchedWindow)
-      .maybeSingle();
-
-    let sourceDocumentId = existingDoc?.id;
-
-    if (!sourceDocumentId) {
-      const { data: insertedDoc, error: insertDocError } = await serviceClient
-        .from("source_documents")
-        .insert({
-          company_id: companyRow.id,
-          kind: "earnings_transcript",
-          source_url: sourceUrl,
-          fetched_at_window: fetchedWindow,
-          raw_content: `Fetched placeholder content for ${sourceUrl}`,
-          metadata: { ingested_by: "reports-function" }
-        })
-        .select("id")
-        .single();
-
-      if (insertDocError || !insertedDoc) {
-        return jsonResponse(500, { error: insertDocError?.message ?? "Failed to persist source document" });
-      }
-
-      sourceDocumentId = insertedDoc.id;
-    }
-
-    sourceDocumentIds.push(sourceDocumentId);
-
-    await serviceClient.from("audit_events").insert({
+  const sourceIngestor = createSourceIngestor(serviceClient);
+  const ingestedSources = await sourceIngestor.fetchSources({
+    company_id: companyRow.id,
+    kind: "earnings_transcript",
+    source_urls: customSources,
+    audit: {
       org_id: activeOrgId,
-      project_id: projectId,
       actor_id: user.id,
-      kind: "scrape",
-      payload: {
-        source_url: sourceUrl,
-        source_document_id: sourceDocumentId,
-        report_type: body.report_type
-      }
-    });
-  }
+      project_id: projectId,
+      report_type: body.report_type
+    }
+  });
+
+  const sourceDocumentIds = ingestedSources.map((document) => document.id);
 
   const sortedSourceIds = sourceDocumentIds.slice().sort();
   const sourceDocSetHash = await sha256Hex(JSON.stringify(sortedSourceIds));
