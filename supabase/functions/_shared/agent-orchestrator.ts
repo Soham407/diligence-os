@@ -8,10 +8,10 @@ const TOOL_BY_REPORT_TYPE: Record<ReportType, string> = {
   lead_intel: "submit_lead_intel_report"
 };
 
-const AGENT_ENV_BY_REPORT_TYPE: Record<ReportType, string> = {
-  earnings_summary: "ANTHROPIC_AGENT_ID_EARNINGS_REVIEWER",
-  due_diligence: "ANTHROPIC_AGENT_ID_DUE_DILIGENCE_ANALYST",
-  lead_intel: "ANTHROPIC_AGENT_ID_LEAD_INTEL_GENERATOR"
+const MODEL_ID_ENV_BY_REPORT_TYPE: Record<ReportType, string> = {
+  earnings_summary: "GEMINI_AGENT_ID_EARNINGS_REVIEWER",
+  due_diligence: "GEMINI_AGENT_ID_DUE_DILIGENCE_ANALYST",
+  lead_intel: "GEMINI_AGENT_ID_LEAD_INTEL_GENERATOR"
 };
 
 type AgentContext = {
@@ -136,6 +136,14 @@ function getCostRates(): CostRates {
   };
 }
 
+function getGeminiModel(): string {
+  return Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
+}
+
+function getGeminiAgentId(reportType: ReportType): string {
+  return Deno.env.get(MODEL_ID_ENV_BY_REPORT_TYPE[reportType]) ?? `gemini-${reportType}`;
+}
+
 export function estimateCostUsd(usage: AgentUsage, rates: CostRates): number | null {
   if (usage.inputTokens === null && usage.outputTokens === null) {
     return null;
@@ -257,39 +265,23 @@ function buildToolInputSchema() {
   };
 }
 
-function buildAnthropicBody(input: AgentRunInput, toolName: string, agentId: string, stream: boolean) {
+function buildGeminiPrompt(input: AgentRunInput, agentId: string): string {
   const recoveryMode = input.recoveryMode ?? "default";
 
-  return {
-    model: "claude-opus-4-7",
-    max_tokens: 1200,
-    stream,
-    tools: [
-      {
-        name: toolName,
-        description:
-          recoveryMode === "strict_retry"
-            ? `Retry and submit a strict, schema-safe final ${input.type} report payload`
-            : `Submit final ${input.type} report payload`,
-        input_schema: buildToolInputSchema()
-      }
-    ],
-    tool_choice: { type: "tool", name: toolName },
-    messages: [
-      {
-        role: "user",
-        content: JSON.stringify({
-          agent_id: agentId,
-          report_type: input.type,
-          company_id: input.context.companyId,
-          source_document_ids: input.context.sourceDocumentIds,
-          custom_sources: input.context.customSources,
-          project_id: input.context.projectId,
-          recovery_mode: recoveryMode
-        })
-      }
-    ]
-  };
+  return [
+    `You are preparing a structured ${input.type} report.`,
+    "Return only valid JSON that matches the supplied schema.",
+    "Use only the provided source_document_ids when citing evidence.",
+    JSON.stringify({
+      agent_id: agentId,
+      report_type: input.type,
+      company_id: input.context.companyId,
+      source_document_ids: input.context.sourceDocumentIds,
+      custom_sources: input.context.customSources,
+      project_id: input.context.projectId,
+      recovery_mode: recoveryMode
+    })
+  ].join("\n\n");
 }
 
 function toNumberOrNull(value: unknown): number | null {
@@ -479,119 +471,120 @@ function extractUsageFromSse(sseText: string): AgentUsage {
   return usage;
 }
 
-async function callAnthropicManagedAgent(
+function extractGeminiText(body: {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{ text?: string }>;
+    };
+  }>;
+  text?: string;
+}): string {
+  const candidateText = body.candidates
+    ?.flatMap((candidate) => candidate.content?.parts ?? [])
+    .map((part) => part.text ?? "")
+    .join("")
+    .trim();
+
+  if (candidateText) {
+    return candidateText;
+  }
+
+  if (typeof body.text === "string" && body.text.trim().length > 0) {
+    return body.text.trim();
+  }
+
+  throw new Error("Gemini response did not include text content");
+}
+
+function extractGeminiUsage(body: {
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    responseTokenCount?: number;
+    totalTokenCount?: number;
+    prompt_token_count?: number;
+    candidates_token_count?: number;
+    response_token_count?: number;
+    total_token_count?: number;
+  };
+}): AgentUsage {
+  const usage = body.usageMetadata ?? {};
+  const inputTokens = usage.promptTokenCount ?? usage.prompt_token_count ?? null;
+  const outputTokens =
+    usage.candidatesTokenCount ??
+    usage.candidates_token_count ??
+    usage.responseTokenCount ??
+    usage.response_token_count ??
+    null;
+
+  return {
+    inputTokens: toNumberOrNull(inputTokens),
+    outputTokens: toNumberOrNull(outputTokens)
+  };
+}
+
+async function callGeminiReport(
   input: AgentRunInput,
   toolName: string,
   agentId: string,
-  anthropicApiKey: string
-): Promise<Record<string, unknown>> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": anthropicApiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "managed-agents-2026-04-01"
-    },
-    body: JSON.stringify(buildAnthropicBody(input, toolName, agentId, false))
-  });
+  geminiApiKey: string
+): Promise<{ payload: Record<string, unknown>; usage: AgentUsage }> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiApiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: buildGeminiPrompt(input, agentId)
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseJsonSchema: buildToolInputSchema()
+        }
+      })
+    }
+  );
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(`Anthropic request failed (${response.status}): ${details}`);
+    throw new Error(`Gemini request failed (${response.status}): ${details}`);
   }
 
   const body = (await response.json()) as {
-    content?: Array<{
-      type?: string;
-      name?: string;
-      input?: Record<string, unknown>;
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string }>;
+      };
     }>;
+    text?: string;
+    usageMetadata?: {
+      promptTokenCount?: number;
+      candidatesTokenCount?: number;
+      responseTokenCount?: number;
+      totalTokenCount?: number;
+      prompt_token_count?: number;
+      candidates_token_count?: number;
+      response_token_count?: number;
+      total_token_count?: number;
+    };
   };
 
-  const toolUse = body.content?.find((item) => item.type === "tool_use" && item.name === toolName);
-  if (!toolUse?.input) {
-    throw new Error(`Anthropic response missing required tool_use: ${toolName}`);
-  }
-
-  return toolUse.input;
-}
-
-async function collectCompletionFromSse(
-  stream: ReadableStream<Uint8Array>,
-  toolName: string,
-  startedAtMs: number
-): Promise<AgentCompletion> {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-
-  let sseText = "";
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      if (value) {
-        sseText += decoder.decode(value, { stream: true });
-      }
-    }
-
-    sseText += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-
-  const payload = extractToolPayloadFromSse(sseText, toolName);
-  if (!payload) {
-    throw new Error(`Anthropic stream completed without final tool payload: ${toolName}`);
-  }
-
-  const usage = extractUsageFromSse(sseText);
-  const durationMs = Math.max(Date.now() - startedAtMs, 0);
-
+  const text = extractGeminiText(body);
   return {
-    payload,
-    usage,
-    durationMs,
-    cost: estimateCostUsd(usage, getCostRates())
+    payload: extractJsonObjectFromText(text),
+    usage: extractGeminiUsage(body)
   };
-}
-
-async function callAnthropicManagedAgentStream(
-  input: AgentRunInput,
-  toolName: string,
-  agentId: string,
-  anthropicApiKey: string
-): Promise<{ stream: ReadableStream<Uint8Array>; completion: Promise<AgentCompletion> }> {
-  const startedAtMs = Date.now();
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": anthropicApiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "managed-agents-2026-04-01"
-    },
-    body: JSON.stringify(buildAnthropicBody(input, toolName, agentId, true))
-  });
-
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Anthropic streaming request failed (${response.status}): ${details}`);
-  }
-
-  if (!response.body) {
-    throw new Error("Anthropic streaming response did not include a body");
-  }
-
-  const [clientStream, collectorStream] = response.body.tee();
-  const completion = collectCompletionFromSse(collectorStream, toolName, startedAtMs);
-
-  return { stream: clientStream, completion };
 }
 
 function createSseStream(text: string): ReadableStream<Uint8Array> {
@@ -610,7 +603,7 @@ function buildMockPayload(input: AgentRunInput): Record<string, unknown> {
   const primarySource = sortedSources[0] ?? null;
 
   return {
-    executive_summary: "Mock report payload because ANTHROPIC_API_KEY is not configured.",
+    executive_summary: "Mock report payload because GEMINI_API_KEY is not configured.",
     key_takeaways: [
       `Generated for ${input.type}`,
       `project_id=${input.context.projectId ?? "none"}`,
@@ -647,13 +640,24 @@ function toInputJsonChunks(payload: Record<string, unknown>): string[] {
   return [json.slice(0, midpoint), json.slice(midpoint)];
 }
 
-function buildMockSse(toolName: string, payload: Record<string, unknown>): string {
+function buildMockSse(
+  toolName: string,
+  payload: Record<string, unknown>,
+  options?: { usage?: AgentUsage; introText?: string }
+): string {
   const chunks = toInputJsonChunks(payload);
+  const usage = options?.usage ?? { inputTokens: 1200, outputTokens: 340 };
+  const introText = options?.introText ?? "Reviewing source documents and extracting key claims...";
 
   return [
     `event: message_start\ndata: ${JSON.stringify({
       type: "message_start",
-      message: { usage: { input_tokens: 1200 } }
+      message: {
+        usage: {
+          input_tokens: usage.inputTokens,
+          output_tokens: usage.outputTokens
+        }
+      }
     })}\n\n`,
     `event: content_block_start\ndata: ${JSON.stringify({
       type: "content_block_start",
@@ -663,7 +667,7 @@ function buildMockSse(toolName: string, payload: Record<string, unknown>): strin
     `event: content_block_delta\ndata: ${JSON.stringify({
       type: "content_block_delta",
       index: 0,
-      delta: { type: "text_delta", text: "Reviewing earnings transcript and extracting key claims..." }
+      delta: { type: "text_delta", text: introText }
     })}\n\n`,
     `event: content_block_stop\ndata: ${JSON.stringify({
       type: "content_block_stop",
@@ -690,7 +694,10 @@ function buildMockSse(toolName: string, payload: Record<string, unknown>): strin
     })}\n\n`,
     `event: message_delta\ndata: ${JSON.stringify({
       type: "message_delta",
-      usage: { input_tokens: 1200, output_tokens: 340 }
+      usage: {
+        input_tokens: usage.inputTokens,
+        output_tokens: usage.outputTokens
+      }
     })}\n\n`,
     "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
   ].join("");
@@ -715,11 +722,36 @@ function createMockStreamResult(
   return { stream, completion };
 }
 
+async function callGeminiReportStream(
+  input: AgentRunInput,
+  toolName: string,
+  agentId: string,
+  geminiApiKey: string
+): Promise<{ stream: ReadableStream<Uint8Array>; completion: Promise<AgentCompletion> }> {
+  const startedAtMs = Date.now();
+  const { payload, usage } = await callGeminiReport(input, toolName, agentId, geminiApiKey);
+
+  return {
+    stream: createSseStream(
+      buildMockSse(toolName, payload, {
+        usage,
+        introText: "Gemini completed the structured report synthesis."
+      })
+    ),
+    completion: Promise.resolve({
+      payload,
+      usage,
+      durationMs: Math.max(Date.now() - startedAtMs, 0),
+      cost: estimateCostUsd(usage, getCostRates())
+    })
+  };
+}
+
 export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const toolName = TOOL_BY_REPORT_TYPE[input.type];
-  const agentId = Deno.env.get(AGENT_ENV_BY_REPORT_TYPE[input.type]) ?? "local-agent";
-  let agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
-  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const agentId = getGeminiAgentId(input.type);
+  let agentVersion = Deno.env.get("AGENT_VERSION") ?? getGeminiModel();
+  const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
   const startedAtMs = Date.now();
 
   const sourceDocSetHash =
@@ -783,8 +815,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   }
 
   if (input.sessionMode === "stream") {
-    const streamResult = anthropicApiKey
-      ? await callAnthropicManagedAgentStream(input, toolName, agentId, anthropicApiKey)
+    const streamResult = geminiApiKey
+      ? await callGeminiReportStream(input, toolName, agentId, geminiApiKey)
       : createMockStreamResult(input, toolName, startedAtMs);
 
     return {
@@ -798,13 +830,9 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     };
   }
 
-  const payload = anthropicApiKey
-    ? await callAnthropicManagedAgent(input, toolName, agentId, anthropicApiKey)
-    : buildMockPayload(input);
-
-  const usage: AgentUsage = anthropicApiKey
-    ? { inputTokens: null, outputTokens: null }
-    : { inputTokens: 1200, outputTokens: 340 };
+  const { payload, usage } = geminiApiKey
+    ? await callGeminiReport(input, toolName, agentId, geminiApiKey)
+    : { payload: buildMockPayload(input), usage: { inputTokens: 1200, outputTokens: 340 } };
 
   return {
     mode: "sync",
@@ -858,7 +886,7 @@ function extractJsonObjectFromText(value: string): Record<string, unknown> {
   return JSON.parse(jsonCandidate) as Record<string, unknown>;
 }
 
-async function callAnthropicShapeCSynthesis(
+async function callGeminiShapeCSynthesis(
   input: {
     reportType: ReportType;
     companyId: string;
@@ -866,48 +894,46 @@ async function callAnthropicShapeCSynthesis(
     customSources: string[];
     projectId: string | null;
   },
-  anthropicApiKey: string
+  geminiApiKey: string
 ): Promise<Record<string, unknown>> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": anthropicApiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-beta": "managed-agents-2026-04-01"
-    },
-    body: JSON.stringify({
-      model: "claude-opus-4-7",
-      max_tokens: 1400,
-      messages: [
-        {
-          role: "user",
-          content: buildShapeCPrompt(input)
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiApiKey
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: buildShapeCPrompt(input) }]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseJsonSchema: buildToolInputSchema()
         }
-      ]
-    })
-  });
+      })
+    }
+  );
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(`Anthropic Shape C synthesis failed (${response.status}): ${details}`);
+    throw new Error(`Gemini Shape C synthesis failed (${response.status}): ${details}`);
   }
 
   const body = (await response.json()) as {
-    content?: Array<{ type?: string; text?: string }>;
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string }>;
+      };
+    }>;
+    text?: string;
   };
 
-  const text = body.content
-    ?.filter((entry) => entry.type === "text" && typeof entry.text === "string")
-    .map((entry) => entry.text ?? "")
-    .join("\n")
-    .trim();
-
-  if (!text) {
-    throw new Error("Anthropic Shape C synthesis returned empty text content");
-  }
-
-  return extractJsonObjectFromText(text);
+  return extractJsonObjectFromText(extractGeminiText(body));
 }
 
 export type LegacyAgentRunInput = {
@@ -956,12 +982,12 @@ export async function runReportAgent(input: LegacyAgentRunInput): Promise<Legacy
 export async function runReportAgentShapeC(
   input: Omit<LegacyAgentRunInput, "recoveryMode">
 ): Promise<LegacyAgentRunResult> {
-  const agentId = Deno.env.get(AGENT_ENV_BY_REPORT_TYPE[input.reportType]) ?? "local-agent";
-  const agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
-  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const agentId = getGeminiAgentId(input.reportType);
+  const agentVersion = Deno.env.get("AGENT_VERSION") ?? getGeminiModel();
+  const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
 
-  const payload = anthropicApiKey
-    ? await callAnthropicShapeCSynthesis(
+  const payload = geminiApiKey
+    ? await callGeminiShapeCSynthesis(
         {
           reportType: input.reportType,
           companyId: input.companyId,
@@ -969,7 +995,7 @@ export async function runReportAgentShapeC(
           customSources: input.customSources,
           projectId: input.projectId
         },
-        anthropicApiKey
+        geminiApiKey
       )
     : buildMockPayload({
         type: input.reportType,

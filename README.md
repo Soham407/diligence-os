@@ -26,6 +26,8 @@ NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=your-google-client-id
 SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=your-google-client-secret
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ## Local development

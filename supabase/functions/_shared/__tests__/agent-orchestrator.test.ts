@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   computeSourceDocSetHash,
   estimateCostUsd,
@@ -37,6 +37,7 @@ function createCacheClient(result: CacheChainResult, flags?: { onFrom?: () => vo
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis as Record<string, unknown>, "Deno");
+  vi.unstubAllGlobals();
 });
 
 describe("agent orchestrator SSE helpers", () => {
@@ -132,6 +133,167 @@ describe("agent orchestrator SSE helpers", () => {
 });
 
 describe("agent orchestrator compositions cache", () => {
+  it("calls Gemini and parses the structured JSON payload", async () => {
+    (globalThis as { Deno: { env: { get: (name: string) => string | undefined } } }).Deno = {
+      env: {
+        get: (name) => {
+          if (name === "GEMINI_API_KEY") return "gemini-test-key";
+          if (name === "GEMINI_MODEL") return "gemini-2.5-flash";
+          if (name === "AGENT_VERSION") return "agent-v1";
+          return undefined;
+        }
+      }
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        executive_summary: "Gemini summary",
+                        key_takeaways: ["Fast"],
+                        sections: [],
+                        red_flags: [],
+                        source_documents_used: ["doc-1"]
+                      })
+                    }
+                  ]
+                }
+              }
+            ],
+            usageMetadata: {
+              promptTokenCount: 1200,
+              candidatesTokenCount: 340
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
+      })
+    );
+
+    const run = await runAgent({
+      type: "earnings_summary",
+      sessionMode: "sync",
+      context: {
+        companyId: "company-1",
+        sourceDocumentIds: ["doc-1"],
+        customSources: [],
+        projectId: null
+      }
+    });
+
+    const completion = await run.completion;
+
+    expect(completion.payload).toEqual({
+      executive_summary: "Gemini summary",
+      key_takeaways: ["Fast"],
+      sections: [],
+      red_flags: [],
+      source_documents_used: ["doc-1"]
+    });
+    expect(completion.usage).toEqual({ inputTokens: 1200, outputTokens: 340 });
+    expect(run.agentId).toBe("gemini-earnings_summary");
+  });
+
+  it("streams a synthetic SSE wrapper for Gemini output", async () => {
+    (globalThis as { Deno: { env: { get: (name: string) => string | undefined } } }).Deno = {
+      env: {
+        get: (name) => {
+          if (name === "GEMINI_API_KEY") return "gemini-test-key";
+          if (name === "GEMINI_MODEL") return "gemini-2.5-flash";
+          return undefined;
+        }
+      }
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(
+          JSON.stringify({
+            candidates: [
+              {
+                content: {
+                  parts: [
+                    {
+                      text: JSON.stringify({
+                        executive_summary: "Gemini streamed summary",
+                        key_takeaways: ["Structured"],
+                        sections: [],
+                        red_flags: [],
+                        source_documents_used: ["doc-1"]
+                      })
+                    }
+                  ]
+                }
+              }
+            ],
+            usageMetadata: {
+              promptTokenCount: 900,
+              candidatesTokenCount: 210
+            }
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json"
+            }
+          }
+        );
+      })
+    );
+
+    const run = await runAgent({
+      type: "earnings_summary",
+      sessionMode: "stream",
+      context: {
+        companyId: "company-1",
+        sourceDocumentIds: ["doc-1"],
+        customSources: [],
+        projectId: null
+      }
+    });
+
+    expect(run.mode).toBe("stream");
+
+    const reader = run.stream.getReader();
+    const decoder = new TextDecoder();
+    let text = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        text += decoder.decode(value, { stream: true });
+      }
+    }
+    text += decoder.decode();
+    reader.releaseLock();
+
+    expect(text).toContain("Gemini completed the structured report synthesis.");
+    expect(extractToolPayloadFromSse(text, "submit_earnings_summary")).toEqual({
+      executive_summary: "Gemini streamed summary",
+      key_takeaways: ["Structured"],
+      sections: [],
+      red_flags: [],
+      source_documents_used: ["doc-1"]
+    });
+
+    const completion = await run.completion;
+    expect(completion.usage).toEqual({ inputTokens: 900, outputTokens: 210 });
+  });
+
   it("normalizes source document ids before hashing cache key input", async () => {
     const a = await computeSourceDocSetHash(["doc-2", "doc-1", "doc-3"]);
     const b = await computeSourceDocSetHash(["doc-1", "doc-3", "doc-2"]);
