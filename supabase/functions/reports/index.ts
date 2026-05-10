@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { Entitlements } from "../_shared/entitlements.ts";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { runReportAgent, type ReportType } from "../_shared/agent-orchestrator.ts";
+import { runAgent, runReportAgent, type ReportType } from "../_shared/agent-orchestrator.ts";
 import { createSourceIngestor } from "../_shared/source-ingestor.ts";
 import { createServiceClient, createUserClient } from "../_shared/supabase.ts";
 
@@ -30,6 +30,22 @@ async function sha256Hex(input: string): Promise<string> {
 
 function isReportType(value: unknown): value is ReportType {
   return value === "earnings_summary" || value === "due_diligence" || value === "lead_intel";
+}
+
+function streamHeaders(): Headers {
+  return new Headers({
+    ...corsHeaders,
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no"
+  });
+}
+
+function trackBackground(promise: Promise<unknown>) {
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } })
+    .EdgeRuntime;
+
+  runtime?.waitUntil?.(promise);
 }
 
 Deno.serve(async (request) => {
@@ -133,6 +149,108 @@ Deno.serve(async (request) => {
   const sortedSourceIds = sourceDocumentIds.slice().sort();
   const sourceDocSetHash = await sha256Hex(JSON.stringify(sortedSourceIds));
 
+  const { error: usageError } = await serviceClient.from("usage_events").insert({
+    org_id: activeOrgId,
+    user_id: user.id,
+    action: entitlementAction,
+    metadata: {
+      report_type: body.report_type,
+      company_id: body.company_id,
+      project_id: projectId,
+      cache_bypass: bypassCache
+    }
+  });
+
+  if (usageError) {
+    return jsonResponse(500, { error: usageError.message });
+  }
+
+  if (body.report_type === "earnings_summary") {
+    const agentRun = await runAgent({
+      type: "earnings_summary",
+      sessionMode: "stream",
+      context: {
+        companyId: companyRow.id,
+        sourceDocumentIds: sortedSourceIds,
+        customSources,
+        projectId
+      }
+    });
+
+    if (agentRun.mode !== "stream") {
+      return jsonResponse(500, { error: "Streaming mode expected for earnings_summary" });
+    }
+
+    const persistOnCompletion = agentRun.completion
+      .then(async (completion) => {
+        const { data: createdReport, error: reportError } = await serviceClient
+          .from("reports")
+          .insert({
+            org_id: activeOrgId,
+            project_id: projectId,
+            company_id: companyRow.id,
+            report_type: body.report_type,
+            composition_id: null,
+            source_doc_set_hash: sourceDocSetHash,
+            agent_version: agentRun.agentVersion,
+            status: "succeeded",
+            payload: completion.payload,
+            created_by: user.id
+          })
+          .select("id")
+          .single();
+
+        if (reportError || !createdReport) {
+          throw new Error(reportError?.message ?? "Failed to create streaming report");
+        }
+
+        await serviceClient.from("audit_events").insert({
+          org_id: activeOrgId,
+          project_id: projectId,
+          actor_id: user.id,
+          kind: "agent_run",
+          payload: {
+            report_id: createdReport.id,
+            report_type: body.report_type,
+            tool_name: agentRun.toolName,
+            agent_id: agentRun.agentId,
+            agent_version: agentRun.agentVersion,
+            source_doc_set_hash: sourceDocSetHash,
+            cache_bypass: bypassCache,
+            tokens: {
+              input: completion.usage.inputTokens,
+              output: completion.usage.outputTokens
+            },
+            duration_ms: completion.durationMs,
+            cost: completion.cost
+          }
+        });
+      })
+      .catch(async (error) => {
+        await serviceClient.from("audit_events").insert({
+          org_id: activeOrgId,
+          project_id: projectId,
+          actor_id: user.id,
+          kind: "agent_run_failed",
+          payload: {
+            report_type: body.report_type,
+            tool_name: agentRun.toolName,
+            agent_id: agentRun.agentId,
+            agent_version: agentRun.agentVersion,
+            source_doc_set_hash: sourceDocSetHash,
+            message: error instanceof Error ? error.message : "unknown streaming failure"
+          }
+        });
+      });
+
+    trackBackground(persistOnCompletion);
+
+    return new Response(agentRun.stream, {
+      status: 200,
+      headers: streamHeaders()
+    });
+  }
+
   let payload: Record<string, unknown> | null = null;
   let compositionId: string | null = null;
   let agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
@@ -206,22 +324,6 @@ Deno.serve(async (request) => {
 
       compositionId = insertedComposition.id;
     }
-  }
-
-  const { error: usageError } = await serviceClient.from("usage_events").insert({
-    org_id: activeOrgId,
-    user_id: user.id,
-    action: entitlementAction,
-    metadata: {
-      report_type: body.report_type,
-      company_id: body.company_id,
-      project_id: projectId,
-      cache_bypass: bypassCache
-    }
-  });
-
-  if (usageError) {
-    return jsonResponse(500, { error: usageError.message });
   }
 
   const { data: createdReport, error: reportError } = await serviceClient
