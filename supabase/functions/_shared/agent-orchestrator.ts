@@ -19,10 +19,13 @@ type AgentContext = {
   projectId: string | null;
 };
 
+type AgentRecoveryMode = "default" | "strict_retry";
+
 export type AgentRunInput = {
   type: ReportType;
   context: AgentContext;
   sessionMode: "stream" | "sync";
+  recoveryMode?: AgentRecoveryMode;
 };
 
 export type AgentUsage = {
@@ -84,7 +87,120 @@ export function estimateCostUsd(usage: AgentUsage, rates: CostRates): number | n
   return Number((inputComponent + outputComponent).toFixed(10));
 }
 
+function buildToolInputSchema() {
+  return {
+    type: "object",
+    properties: {
+      executive_summary: { type: "string" },
+      key_takeaways: { type: "array", items: { type: "string" } },
+      sections: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            heading: { type: "string" },
+            claims: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  claim_id: { type: "string" },
+                  text: { type: "string" },
+                  citations: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        source_document_id: { type: "string" },
+                        locator: {
+                          oneOf: [
+                            {
+                              type: "object",
+                              properties: {
+                                type: { const: "pdf_page" },
+                                page: { type: "number" }
+                              },
+                              required: ["type", "page"]
+                            },
+                            {
+                              type: "object",
+                              properties: {
+                                type: { const: "text_span" },
+                                start_char: { type: "number" },
+                                end_char: { type: "number" }
+                              },
+                              required: ["type", "start_char", "end_char"]
+                            },
+                            {
+                              type: "object",
+                              properties: {
+                                type: { const: "audio_timestamp" },
+                                start_sec: { type: "number" },
+                                end_sec: { type: "number" }
+                              },
+                              required: ["type", "start_sec", "end_sec"]
+                            },
+                            {
+                              type: "object",
+                              properties: {
+                                type: { const: "html_anchor" },
+                                selector: { type: "string" }
+                              },
+                              required: ["type", "selector"]
+                            }
+                          ]
+                        },
+                        quote: { type: "string" }
+                      },
+                      required: ["source_document_id", "locator", "quote"]
+                    }
+                  }
+                },
+                required: ["claim_id", "text", "citations"]
+              }
+            }
+          },
+          required: ["heading", "claims"]
+        }
+      },
+      red_flags: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            text: { type: "string" },
+            citations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  source_document_id: { type: "string" },
+                  locator: { type: "object" },
+                  quote: { type: "string" }
+                },
+                required: ["source_document_id", "locator", "quote"]
+              }
+            }
+          },
+          required: ["text", "citations"]
+        }
+      },
+      source_documents_used: { type: "array", items: { type: "string" } }
+    },
+    required: [
+      "executive_summary",
+      "key_takeaways",
+      "sections",
+      "red_flags",
+      "source_documents_used"
+    ],
+    additionalProperties: true
+  };
+}
+
 function buildAnthropicBody(input: AgentRunInput, toolName: string, agentId: string, stream: boolean) {
+  const recoveryMode = input.recoveryMode ?? "default";
+
   return {
     model: "claude-opus-4-7",
     max_tokens: 1200,
@@ -92,17 +208,11 @@ function buildAnthropicBody(input: AgentRunInput, toolName: string, agentId: str
     tools: [
       {
         name: toolName,
-        description: `Submit final ${input.type} report payload`,
-        input_schema: {
-          type: "object",
-          properties: {
-            executive_summary: { type: "string" },
-            key_takeaways: { type: "array", items: { type: "string" } },
-            source_documents_used: { type: "array", items: { type: "string" } }
-          },
-          required: ["executive_summary", "key_takeaways", "source_documents_used"],
-          additionalProperties: true
-        }
+        description:
+          recoveryMode === "strict_retry"
+            ? `Retry and submit a strict, schema-safe final ${input.type} report payload`
+            : `Submit final ${input.type} report payload`,
+        input_schema: buildToolInputSchema()
       }
     ],
     tool_choice: { type: "tool", name: toolName },
@@ -115,7 +225,8 @@ function buildAnthropicBody(input: AgentRunInput, toolName: string, agentId: str
           company_id: input.context.companyId,
           source_document_ids: input.context.sourceDocumentIds,
           custom_sources: input.context.customSources,
-          project_id: input.context.projectId
+          project_id: input.context.projectId,
+          recovery_mode: recoveryMode
         })
       }
     ]
@@ -436,6 +547,9 @@ function createSseStream(text: string): ReadableStream<Uint8Array> {
 }
 
 function buildMockPayload(input: AgentRunInput): Record<string, unknown> {
+  const sortedSources = input.context.sourceDocumentIds.slice().sort();
+  const primarySource = sortedSources[0] ?? null;
+
   return {
     executive_summary: "Mock report payload because ANTHROPIC_API_KEY is not configured.",
     key_takeaways: [
@@ -443,7 +557,28 @@ function buildMockPayload(input: AgentRunInput): Record<string, unknown> {
       `project_id=${input.context.projectId ?? "none"}`,
       `sources=${input.context.sourceDocumentIds.length}`
     ],
-    source_documents_used: input.context.sourceDocumentIds.slice().sort()
+    sections: [
+      {
+        heading: "Mock Findings",
+        claims: [
+          {
+            claim_id: "mock-claim-1",
+            text: "Synthetic claim for local development and tests.",
+            citations: primarySource
+              ? [
+                  {
+                    source_document_id: primarySource,
+                    locator: { type: "text_span", start_char: 0, end_char: 64 },
+                    quote: "Synthetic claim"
+                  }
+                ]
+              : []
+          }
+        ]
+      }
+    ],
+    red_flags: [],
+    source_documents_used: sortedSources
   };
 }
 
@@ -565,12 +700,102 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   };
 }
 
+function buildShapeCPrompt(input: {
+  reportType: ReportType;
+  sourceDocumentIds: string[];
+  customSources: string[];
+  companyId: string;
+  projectId: string | null;
+}): string {
+  return [
+    "Return only valid JSON that conforms to this structure:",
+    JSON.stringify(buildToolInputSchema()),
+    "Use source_document_id values only from source_document_ids.",
+    JSON.stringify({
+      report_type: input.reportType,
+      company_id: input.companyId,
+      source_document_ids: input.sourceDocumentIds,
+      custom_sources: input.customSources,
+      project_id: input.projectId
+    })
+  ].join("\n\n");
+}
+
+function extractJsonObjectFromText(value: string): Record<string, unknown> {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return JSON.parse(trimmed) as Record<string, unknown>;
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
+    throw new Error("Shape C response did not include a JSON object");
+  }
+
+  const jsonCandidate = trimmed.slice(firstBrace, lastBrace + 1);
+  return JSON.parse(jsonCandidate) as Record<string, unknown>;
+}
+
+async function callAnthropicShapeCSynthesis(
+  input: {
+    reportType: ReportType;
+    companyId: string;
+    sourceDocumentIds: string[];
+    customSources: string[];
+    projectId: string | null;
+  },
+  anthropicApiKey: string
+): Promise<Record<string, unknown>> {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "managed-agents-2026-04-01"
+    },
+    body: JSON.stringify({
+      model: "claude-opus-4-7",
+      max_tokens: 1400,
+      messages: [
+        {
+          role: "user",
+          content: buildShapeCPrompt(input)
+        }
+      ]
+    })
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Anthropic Shape C synthesis failed (${response.status}): ${details}`);
+  }
+
+  const body = (await response.json()) as {
+    content?: Array<{ type?: string; text?: string }>;
+  };
+
+  const text = body.content
+    ?.filter((entry) => entry.type === "text" && typeof entry.text === "string")
+    .map((entry) => entry.text ?? "")
+    .join("\n")
+    .trim();
+
+  if (!text) {
+    throw new Error("Anthropic Shape C synthesis returned empty text content");
+  }
+
+  return extractJsonObjectFromText(text);
+}
+
 export type LegacyAgentRunInput = {
   reportType: ReportType;
   companyId: string;
   sourceDocumentIds: string[];
   customSources: string[];
   projectId: string | null;
+  recoveryMode?: AgentRecoveryMode;
 };
 
 export type LegacyAgentRunResult = {
@@ -584,6 +809,7 @@ export async function runReportAgent(input: LegacyAgentRunInput): Promise<Legacy
   const run = await runAgent({
     type: input.reportType,
     sessionMode: "sync",
+    recoveryMode: input.recoveryMode ?? "default",
     context: {
       companyId: input.companyId,
       sourceDocumentIds: input.sourceDocumentIds,
@@ -599,5 +825,43 @@ export async function runReportAgent(input: LegacyAgentRunInput): Promise<Legacy
     toolName: run.toolName,
     agentId: run.agentId,
     agentVersion: run.agentVersion
+  };
+}
+
+export async function runReportAgentShapeC(
+  input: Omit<LegacyAgentRunInput, "recoveryMode">
+): Promise<LegacyAgentRunResult> {
+  const agentId = Deno.env.get(AGENT_ENV_BY_REPORT_TYPE[input.reportType]) ?? "local-agent";
+  const agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
+  const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
+
+  const payload = anthropicApiKey
+    ? await callAnthropicShapeCSynthesis(
+        {
+          reportType: input.reportType,
+          companyId: input.companyId,
+          sourceDocumentIds: input.sourceDocumentIds,
+          customSources: input.customSources,
+          projectId: input.projectId
+        },
+        anthropicApiKey
+      )
+    : buildMockPayload({
+        type: input.reportType,
+        sessionMode: "sync",
+        context: {
+          companyId: input.companyId,
+          sourceDocumentIds: input.sourceDocumentIds,
+          customSources: input.customSources,
+          projectId: input.projectId
+        },
+        recoveryMode: "strict_retry"
+      });
+
+  return {
+    payload,
+    toolName: TOOL_BY_REPORT_TYPE[input.reportType],
+    agentId,
+    agentVersion
   };
 }
