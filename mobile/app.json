@@ -2,6 +2,7 @@
   "expo": {
     "name": "Diligence OS",
     "slug": "diligence-os",
+    "scheme": "diligenceos",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
