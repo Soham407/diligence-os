@@ -1,0 +1,1353 @@
+
+--- Run started: 2026-05-09T20:59:45.600Z ---
+Sandcastle Run
+  Agent: implementer-22
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (12.1s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1467 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue details and PRD context first, then inspect the current auth/tenancy code and tests so I can implement exactly issue #22’s contract and acceptance criteria without touching adjacent scope.
+Bash(/bin/bash -lc 'pwd; ls -la; git status --short --branch')
+I confirmed we’re already on `sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui`. Next I’ll read `AGENTS.md`, then pull issue #22 and #1 (with comments) to lock the exact contract before coding.
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+Bash(/bin/bash -lc 'gh issue view 22 --comments')
+`AGENTS.md` matches the conventions you pasted. The GitHub issue commands returned no visible output in that run, so I’m re-running them with pager disabled to capture full issue text reliably.
+Bash(/bin/bash -lc 'GH_PAGER=cat gh issue view 22 --comments')
+
+--- Run started: 2026-05-09T21:00:19.300Z ---
+Sandcastle Run
+  Agent: implementer-22
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui
+Iteration 1/100
+Setting up sandbox
+Bash(/bin/bash -lc 'gh repo view --json nameWithOwner,url; gh auth status')
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.5s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1467 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+Bash(/bin/bash -lc 'gh issue view 22 --json number,title,body,comments,author,labels,state,url')
+Bash(/bin/bash -lc 'gh issue view 1 --json number,title,body,comments,author,labels,state,url')
+I’m going to pull issue #22 and #1 with comments, read the repo conventions and PRD/docs, then map the current auth/tenancy code and tests before writing a RED test for the issue contract.
+Bash(/bin/bash -lc 'git status --short --branch && ls -la')
+I have the exact acceptance criteria from issue #22 and the parent context from #1. Next I’ll inspect `docs/PRD.md`, the existing tenancy migration/tests, and the web auth UI to implement only the multi-org switch + active-org claim flow.
+Bash(/bin/bash -lc 'rg -n "active_org|current_active_org|org_members|user_profiles|organization|org switch|switch" docs/PRD.md supabase web -S')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc "ls -R web | sed -n '1,260p'")
+Bash(/bin/bash -lc "ls -R supabase | sed -n '1,220p'")
+Branch is already correct. Next I’ll read `AGENTS.md`, the issue-tracker/domain docs, and `docs/PRD.md`, then fetch issue #22 and parent issue #1 contracts.
+Bash(/bin/bash -lc 'cat docs/agents/issue-tracker.md')
+Bash(/bin/bash -lc 'cat docs/agents/domain.md')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'cat docs/agents/triage-labels.md')
+Bash(/bin/bash -lc 'cat CONTEXT.md 2>/dev/null || true')
+Bash(/bin/bash -lc 'ls -la docs/adr || true')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+I’ve loaded the canonical PRD and confirmed current code is still at the issue #21 foundation. Next I’m reading the existing migration, SQL test, and web auth panel to design the minimal delta for issue #22.
+Bash(/bin/bash -lc 'cat supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql')
+Bash(/bin/bash -lc 'cat supabase/tests/issue_21_auth_tenancy.sql')
+Bash(/bin/bash -lc 'cat web/app/page.tsx')
+Bash(/bin/bash -lc 'cat web/app/auth-panel.tsx')
+Bash(/bin/bash -lc "cat web/lib/supabase/server.ts; echo '---'; cat web/lib/supabase/browser.ts; echo '---'; cat web/lib/supabase/env.ts")
+Bash(/bin/bash -lc "cat supabase/config.toml; echo '---'; cat supabase/package.json; echo '---'; cat web/package.json; echo '---'; cat package.json")
+Bash(/bin/bash -lc 'gh issue view 22 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I pulled both issues, but `gh` returned empty in this shell mode. I’m re-running with explicit JSON output so we can reliably extract the contract sections.
+Bash(/bin/bash -lc "gh issue view 22 --json number,title,body,comments,labels --jq '{number,title,labels:[.labels[].name],body,comments:[.comments[].body]}'")
+Bash(/bin/bash -lc "gh issue view 1 --json number,title,body,comments,labels --jq '{number,title,labels:[.labels[].name],body,comments:[.comments[].body]}'")
+I’ve extracted the exact issue #22 acceptance criteria. Next I’m mapping existing tenancy/auth code and tests so we can add only the required multi-org pieces (JWT active-org defaulting, switch endpoint, switcher UI, and stale-JWT verification).
+Bash(/bin/bash -lc 'cat package.json')
+Bash(/bin/bash -lc 'rg --files')
+Bash(/bin/bash -lc 'cat web/package.json')
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc 'find . -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc "find . -maxdepth 4 -type f \\( -name \"*test*\" -o -name \"*.spec.*\" -o -name \"*.sql\" \\) | sort")
+Bash(/bin/bash -lc 'find web/app -type f | sort')
+Bash(/bin/bash -lc 'find supabase/functions -type f | sort')
+Bash(/bin/bash -lc 'find supabase/migrations -type f | sort')
+Bash(/bin/bash -lc 'find supabase/tests -type f | sort')
+Bash(/bin/bash -lc 'cat supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql')
+Bash(/bin/bash -lc 'cat supabase/tests/issue_21_auth_tenancy.sql')
+Bash(/bin/bash -lc 'cat web/lib/supabase/env.ts')
+Bash(/bin/bash -lc 'cat web/lib/supabase/browser.ts')
+Bash(/bin/bash -lc 'cat web/app/auth/callback/route.ts')
+Bash(/bin/bash -lc 'cat web/lib/supabase/server.ts')
+Bash(/bin/bash -lc 'cat web/app/auth-panel.tsx')
+Bash(/bin/bash -lc 'cat web/app/page.tsx')
+Bash(/bin/bash -lc 'cat supabase/config.toml')
+Bash(/bin/bash -lc 'cat README.md')
+Bash(/bin/bash -lc 'cat .env.example')
+Bash(/bin/bash -lc 'cat web/app/layout.tsx')
+Bash(/bin/bash -lc 'cat web/app/globals.css')
+Bash(/bin/bash -lc 'cat web/tsconfig.json')
+Bash(/bin/bash -lc 'cat supabase/seed.sql')
+Bash(/bin/bash -lc 'cat tsconfig.base.json')
+I have enough context and I’m moving into implementation with strict issue-22 scope.
+
+Plan:
+1. Add a new SQL test file for issue #22 (RED) that asserts:
+- token-hook claim defaulting (`last_active_org_id` then personal org),
+- stale-JWT replay protection after membership removal.
+2. Implement DB migration for issue #22:
+- `public.custom_access_token_hook(event jsonb)` to set `claims.app_metadata.active_org_id` using `user_profiles` + live membership fallback.
+- enable the hook in `supabase/config.toml`.
+3. Add `orgs/switch` Edge Function:
+- `POST` only, body `{ org_id }`,
+- authenticate caller, verify membership in target org,
+- persist `user_profiles.last_active_org_id`,
+- update `auth.users.raw_app_meta_data.active_org_id`,
+- return success so client can refresh session.
+4. Update Next.js UI with org switcher dropdown:
+- list memberships for signed-in user,
+- on selection call `/functions/v1/orgs/switch`,
+- refresh session and reload so subsequent calls use the new org.
+5. Run typecheck/tests, then commit with required message format.
+I’m starting RED now by adding a dedicated SQL test for issue #22 that codifies the token-hook default behavior and stale-JWT replay revocation. After that I’ll implement migration and function code to satisfy it.
+Bash(/bin/bash -lc "cat > supabase/tests/issue_22_multi_org_active_org_switch.sql <<'SQL'
+begin;
+
+do "'$$
+declare
+  user_a uuid := '"'00000000-0000-0000-0000-000000000022';
+  user_b uuid := '00000000-0000-0000-0000-000000000023';
+  personal_org_a uuid;
+  shared_org uuid;
+  hook_claim_org uuid;
+  hook_result jsonb;
+  visible_count int;
+  resolved_org uuid;
+begin
+  delete from auth.users where id in (user_a, user_b);
+
+  insert into auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  values
+  (
+    user_a,
+    'authenticated',
+    'authenticated',
+    'issue22-user-a@example.com',
+    crypt('password', gen_salt('bf')),
+    now(),
+    '{}'::jsonb,
+    '{\"full_name\":\"Issue 22 User A\"}'::jsonb,
+    now(),
+    now()
+  ),
+  (
+    user_b,
+    'authenticated',
+    'authenticated',
+    'issue22-user-b@example.com',
+    crypt('password', gen_salt('bf')),
+    now(),
+    '{}'::jsonb,
+    '{\"full_name\":\"Issue 22 User B\"}'::jsonb,
+    now(),
+    now()
+  );
+
+  select personal_org_id into personal_org_a
+  from public.user_profiles
+  where user_id = user_a;
+
+  if personal_org_a is null then
+    raise exception 'expected personal org for user_a';
+  end if;
+
+  insert into public.organizations (name, org_type, plan)
+  values ('Issue 22 Shared Org', 'b2b', 'b2b_starter')
+  returning id into shared_org;
+
+  insert into public.org_members (org_id, user_id, role)
+  values
+    (shared_org, user_a, 'admin'),
+    (shared_org, user_b, 'analyst');
+
+  update public.user_profiles
+  set last_active_org_id = shared_org
+  where user_id = user_a;
+
+  select public.custom_access_token_hook(
+    jsonb_build_object(
+      'user_id', user_a::text,
+      'claims', jsonb_build_object('app_metadata', '{}'::jsonb)
+    )
+  ) into hook_result;
+
+  hook_claim_org := (hook_result -> 'claims' -> 'app_metadata' ->> 'active_org_id')::uuid;
+  if hook_claim_org is distinct from shared_org then
+    raise exception 'expected hook to prefer last_active_org_id %, got %', shared_org, hook_claim_org;
+  end if;
+
+  delete from public.org_members
+  where org_id = shared_org
+    and user_id = user_a;
+
+  select public.custom_access_token_hook(
+    jsonb_build_object(
+      'user_id', user_a::text,
+      'claims', jsonb_build_object('app_metadata', '{}'::jsonb)
+    )
+  ) into hook_result;
+
+  hook_claim_org := (hook_result -> 'claims' -> 'app_metadata' ->> 'active_org_id')::uuid;
+  if hook_claim_org is distinct from personal_org_a then
+    raise exception 'expected hook to fallback to personal org %, got %', personal_org_a, hook_claim_org;
+  end if;
+
+  insert into public.org_private_notes (org_id, note)
+  values
+    (shared_org, 'shared-org-note'),
+    (personal_org_a, 'personal-org-note');
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', user_a::text, true);
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('app_metadata', json_build_object('active_org_id', shared_org::text))::text,
+    true
+  );
+
+  select public.current_active_org() into resolved_org;
+  if resolved_org is not null then
+    raise exception 'expected stale JWT active org to be revoked after membership delete, got %', resolved_org;
+  end if;
+
+  select count(*) into visible_count from public.org_private_notes;
+  if visible_count "'!= 0 then
+    raise exception '"'expected stale-JWT replay query to return 0 rows, got %', visible_count;
+  end if;
+
+  reset role;
+end;
+"'$$;
+
+rollback;
+SQL')
+I’ve added the new issue-22 SQL test (RED). I’m now adding the migration for token-claim selection and hook wiring, then I’ll build the `orgs/switch` Edge Function and UI to satisfy the remaining acceptance criteria.
+Bash(/bin/bash -lc "cat > supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql <<'SQL'
+create or replace function public.resolve_active_org_for_user(target_user_id uuid) returns uuid
+language plpgsql
+stable
+security definer
+set search_path = public
+as "'$$
+declare
+  preferred_org_id uuid;
+  personal_org_id uuid;
+  fallback_org_id uuid;
+begin
+  select up.last_active_org_id, up.personal_org_id
+  into preferred_org_id, personal_org_id
+  from public.user_profiles up
+  where up.user_id = target_user_id;
+
+  if preferred_org_id is not null and exists (
+    select 1
+    from public.org_members om
+    where om.user_id = target_user_id
+      and om.org_id = preferred_org_id
+  ) then
+    return preferred_org_id;
+  end if;
+
+  if personal_org_id is not null and exists (
+    select 1
+    from public.org_members om
+    where om.user_id = target_user_id
+      and om.org_id = personal_org_id
+  ) then
+    return personal_org_id;
+  end if;
+
+  select om.org_id
+  into fallback_org_id
+  from public.org_members om
+  where om.user_id = target_user_id
+  order by om.created_at asc
+  limit 1;
+
+  return fallback_org_id;
+end;
+$$;
+
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  updated_claims jsonb := coalesce(event -> '"'claims', '{}'::jsonb);
+  updated_app_metadata jsonb := coalesce(updated_claims -> 'app_metadata', '{}'::jsonb);
+  target_user_id uuid := (event ->> 'user_id')::uuid;
+  selected_org_id uuid;
+begin
+  selected_org_id := public.resolve_active_org_for_user(target_user_id);
+
+  if selected_org_id is not null then
+    updated_app_metadata := updated_app_metadata || jsonb_build_object('active_org_id', selected_org_id::text);
+  else
+    updated_app_metadata := updated_app_metadata - 'active_org_id';
+  end if;
+
+  updated_claims := jsonb_set(updated_claims, '{app_metadata}', updated_app_metadata, true);
+
+  return jsonb_build_object('claims', updated_claims);
+end;
+"'$$;
+
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
+SQL')
+I’ve mapped the current baseline: issue #21 only sets `active_org_id` at signup and there is no org switch endpoint/UI yet. I’m now implementing issue #22 in RGR order with this scope only:
+1. Add a new Supabase SQL test (`RED`) for active-org defaults, switch behavior, and stale-JWT revocation after membership removal.
+2. Add a migration (`GREEN`) for a custom access token hook plus a membership-verified `set_active_org` DB function used by org switching.
+3. Add the `/functions/v1/orgs/switch` Edge Function that calls `set_active_org` and returns the new active org.
+4. Add a minimal Next.js org switcher in the header that lists memberships and switches org in one click.
+5. Run `npm run typecheck` and `npm run test`, then commit with the required structured message.
+I’m starting the RED step now by adding a dedicated SQL test for issue #22 that should fail until we add the hook/switch implementation.
+Bash(/bin/bash -lc "cat > supabase/functions/orgs-switch/index.ts <<'TS'
+import { createClient } from \"https://esm.sh/@supabase/supabase-js@2\";
+
+type SwitchOrgRequest = {
+  org_id?: string;
+};
+
+const corsHeaders = {
+  \"Access-Control-Allow-Origin\": \"*\",
+  \"Access-Control-Allow-Headers\": \"authorization, x-client-info, apikey, content-type\",
+  \"Access-Control-Allow-Methods\": \"POST, OPTIONS\"
+};
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      \"Content-Type\": \"application/json\"
+    }
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === \"OPTIONS\") {
+    return new Response(\"ok\", { headers: corsHeaders });
+  }
+
+  if (req.method "'!== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    return jsonResponse({ error: "Missing Supabase environment variables." }, 500);
+  }
+
+  const authorization = req.headers.get("Authorization");
+  if (!authorization) {
+    return jsonResponse({ error: "Missing Authorization header." }, 401);
+  }
+
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: { Authorization: authorization }
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
+  const {
+    data: { user },
+    error: userError
+  } = await userClient.auth.getUser();
+
+  if (userError || !user) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  let parsedBody: SwitchOrgRequest;
+  try {
+    parsedBody = (await req.json()) as SwitchOrgRequest;
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body." }, 400);
+  }
+
+  const orgId = parsedBody.org_id;
+  if (!orgId || typeof orgId !== "string") {
+    return jsonResponse({ error: "org_id is required." }, 400);
+  }
+
+  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
+  const { data: membership, error: membershipError } = await serviceClient
+    .from("org_members")
+    .select("org_id")
+    .eq("org_id", orgId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (membershipError) {
+    return jsonResponse({ error: "Failed membership lookup." }, 500);
+  }
+
+  if (!membership) {
+    return jsonResponse({ error: "Forbidden: user is not a member of this org." }, 403);
+  }
+
+  const { error: profileError } = await serviceClient
+    .from("user_profiles")
+    .update({ last_active_org_id: orgId })
+    .eq("user_id", user.id);
+
+  if (profileError) {
+    return jsonResponse({ error: "Failed to update profile active org." }, 500);
+  }
+
+  const nextAppMetadata = {
+    ...(user.app_metadata ?? {}),
+    active_org_id: orgId
+  };
+
+  const { error: updateUserError } = await serviceClient.auth.admin.updateUserById(user.id, {
+    app_metadata: nextAppMetadata
+  });
+
+  if (updateUserError) {
+    return jsonResponse({ error: "Failed to update auth app metadata." }, 500);
+  }
+
+  // Client should refresh the session immediately; the custom access token hook will issue a JWT
+  // that carries the updated app_metadata.active_org_id claim.
+  return jsonResponse({ active_org_id: orgId, switched: true }, 200);
+});
+TS')
+The edge function directory didn’t exist yet, so I’m creating it and then writing the `orgs/switch` handler implementation.
+Bash(/bin/bash -lc "cat > supabase/tests/issue_22_multi_org_active_org_switch.sql <<'SQL'
+begin;
+
+do "'$$
+declare
+  user_id uuid := '"'00000000-0000-0000-0000-000000000022';
+  personal_org_id uuid;
+  second_org_id uuid := '00000000-0000-0000-0000-000000000122';
+  resolved_org uuid;
+  hook_response jsonb;
+  active_org_claim text;
+  visible_count int;
+  metadata_active_org text;
+begin
+  delete from auth.users where id = user_id;
+
+  insert into auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  values (
+    user_id,
+    'authenticated',
+    'authenticated',
+    'issue22-user@example.com',
+    crypt('password', gen_salt('bf')),
+    now(),
+    '{}'::jsonb,
+    '{\"full_name\":\"Issue 22 User\"}'::jsonb,
+    now(),
+    now()
+  );
+
+  select personal_org_id into personal_org_id
+  from public.user_profiles
+  where user_id = user_id;
+
+  if personal_org_id is null then
+    raise exception 'expected personal_org_id to exist for user %', user_id;
+  end if;
+
+  insert into public.organizations (id, name, org_type, plan)
+  values (second_org_id, 'Issue 22 Work Org', 'b2b', 'b2b_basic');
+
+  insert into public.org_members (org_id, user_id, role)
+  values (second_org_id, user_id, 'admin');
+
+  insert into public.org_private_notes (org_id, note)
+  values (personal_org_id, 'personal-note'), (second_org_id, 'work-note');
+
+  update public.user_profiles
+  set last_active_org_id = second_org_id
+  where user_id = user_id;
+
+  hook_response := public.custom_access_token_hook(
+    jsonb_build_object(
+      'user_id', user_id::text,
+      'claims', jsonb_build_object('app_metadata', '{}'::jsonb)
+    )
+  );
+
+  active_org_claim := hook_response -> 'claims' -> 'app_metadata' ->> 'active_org_id';
+
+  if active_org_claim is null or active_org_claim::uuid is distinct from second_org_id then
+    raise exception 'expected hook to set active_org_id to last_active_org_id %, got %', second_org_id, active_org_claim;
+  end if;
+
+  update public.user_profiles
+  set last_active_org_id = null
+  where user_id = user_id;
+
+  hook_response := public.custom_access_token_hook(
+    jsonb_build_object(
+      'user_id', user_id::text,
+      'claims', jsonb_build_object('app_metadata', '{}'::jsonb)
+    )
+  );
+
+  active_org_claim := hook_response -> 'claims' -> 'app_metadata' ->> 'active_org_id';
+
+  if active_org_claim is null or active_org_claim::uuid is distinct from personal_org_id then
+    raise exception 'expected hook fallback active_org_id to personal_org_id %, got %', personal_org_id, active_org_claim;
+  end if;
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', user_id::text, true);
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('app_metadata', json_build_object('active_org_id', personal_org_id::text))::text,
+    true
+  );
+
+  select public.set_active_org(second_org_id) into resolved_org;
+
+  if resolved_org is distinct from second_org_id then
+    raise exception 'expected set_active_org() to return % got %', second_org_id, resolved_org;
+  end if;
+
+  select raw_app_meta_data ->> 'active_org_id' into metadata_active_org
+  from auth.users
+  where id = user_id;
+
+  if metadata_active_org is null or metadata_active_org::uuid is distinct from second_org_id then
+    raise exception 'expected auth.users raw_app_meta_data.active_org_id to be % got %', second_org_id, metadata_active_org;
+  end if;
+
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('app_metadata', json_build_object('active_org_id', second_org_id::text))::text,
+    true
+  );
+
+  select count(*) into visible_count from public.org_private_notes;
+  if visible_count "'!= 1 then
+    raise exception '"'expected active-org switch to scope data to one org row, got %', visible_count;
+  end if;
+
+  delete from public.org_members
+  where org_id = second_org_id
+    and user_id = user_id;
+
+  select public.current_active_org() into resolved_org;
+  if resolved_org is not null then
+    raise exception 'expected current_active_org() to return null after membership removal, got %', resolved_org;
+  end if;
+
+  select count(*) into visible_count from public.org_private_notes;
+  if visible_count "'!= 0 then
+    raise exception '"'expected stale-jwt replay to return zero rows after membership removal, got %', visible_count;
+  end if;
+
+  reset role;
+end;
+"'$$;
+
+rollback;
+SQL')
+The RED test is in place. I’m now adding the SQL migration for the access-token hook and `set_active_org` function, then wiring the Edge Function and UI switcher to pass it.
+I’m now adding a migration that introduces the JWT claim hook and a security-definer `set_active_org(uuid)` DB function so org switching is membership-verified and persisted server-side.
+Bash(/bin/bash -lc "mkdir -p supabase/functions/orgs-switch && cat > supabase/functions/orgs-switch/index.ts <<'TS'
+import { createClient } from \"https://esm.sh/@supabase/supabase-js@2\";
+
+type SwitchOrgRequest = {
+  org_id?: string;
+};
+
+const corsHeaders = {
+  \"Access-Control-Allow-Origin\": \"*\",
+  \"Access-Control-Allow-Headers\": \"authorization, x-client-info, apikey, content-type\",
+  \"Access-Control-Allow-Methods\": \"POST, OPTIONS\"
+};
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      \"Content-Type\": \"application/json\"
+    }
+  });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === \"OPTIONS\") {
+    return new Response(\"ok\", { headers: corsHeaders });
+  }
+
+  if (req.method "'!== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRoleKey) {
+    return jsonResponse({ error: "Missing Supabase environment variables." }, 500);
+  }
+
+  const authorization = req.headers.get("Authorization");
+  if (!authorization) {
+    return jsonResponse({ error: "Missing Authorization header." }, 401);
+  }
+
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: { Authorization: authorization }
+    },
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
+  const {
+    data: { user },
+    error: userError
+  } = await userClient.auth.getUser();
+
+  if (userError || !user) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+
+  let parsedBody: SwitchOrgRequest;
+  try {
+    parsedBody = (await req.json()) as SwitchOrgRequest;
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body." }, 400);
+  }
+
+  const orgId = parsedBody.org_id;
+  if (!orgId || typeof orgId !== "string") {
+    return jsonResponse({ error: "org_id is required." }, 400);
+  }
+
+  const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  });
+
+  const { data: membership, error: membershipError } = await serviceClient
+    .from("org_members")
+    .select("org_id")
+    .eq("org_id", orgId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (membershipError) {
+    return jsonResponse({ error: "Failed membership lookup." }, 500);
+  }
+
+  if (!membership) {
+    return jsonResponse({ error: "Forbidden: user is not a member of this org." }, 403);
+  }
+
+  const { error: profileError } = await serviceClient
+    .from("user_profiles")
+    .update({ last_active_org_id: orgId })
+    .eq("user_id", user.id);
+
+  if (profileError) {
+    return jsonResponse({ error: "Failed to update profile active org." }, 500);
+  }
+
+  const nextAppMetadata = {
+    ...(user.app_metadata ?? {}),
+    active_org_id: orgId
+  };
+
+  const { error: updateUserError } = await serviceClient.auth.admin.updateUserById(user.id, {
+    app_metadata: nextAppMetadata
+  });
+
+  if (updateUserError) {
+    return jsonResponse({ error: "Failed to update auth app metadata." }, 500);
+  }
+
+  // Client should refresh the session immediately; the custom access token hook will issue a JWT
+  // that carries the updated app_metadata.active_org_id claim.
+  return jsonResponse({ active_org_id: orgId, switched: true }, 200);
+});
+TS')
+Bash(/bin/bash -lc 'mkdir -p supabase/functions/orgs && mv supabase/functions/orgs-switch/index.ts supabase/functions/orgs/index.ts && rmdir supabase/functions/orgs-switch')
+Bash(/bin/bash -lc "cat > supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql <<'SQL'
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as "'$$
+declare
+  claims jsonb := coalesce(event->'"'claims', '{}'::jsonb);
+  existing_app_metadata jsonb := coalesce(claims->'app_metadata', '{}'::jsonb);
+  preferred_org_id uuid;
+  target_user_id uuid := (event->>'user_id')::uuid;
+begin
+  select case
+      when up.last_active_org_id is not null
+        and exists (
+          select 1
+          from public.org_members om
+          where om.user_id = up.user_id
+            and om.org_id = up.last_active_org_id
+        ) then up.last_active_org_id
+      else up.personal_org_id
+    end
+  into preferred_org_id
+  from public.user_profiles up
+  where up.user_id = target_user_id;
+
+  if preferred_org_id is not null then
+    claims := jsonb_set(
+      claims,
+      '{app_metadata}',
+      existing_app_metadata || jsonb_build_object('active_org_id', preferred_org_id::text),
+      true
+    );
+  end if;
+
+  return jsonb_build_object('claims', claims);
+end;
+"'$$;
+
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
+revoke execute on function public.custom_access_token_hook(jsonb) from anon, authenticated, public;
+
+create or replace function public.set_active_org(next_org_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id uuid := auth.uid();
+  has_membership boolean;
+begin
+  if actor_id is null then
+    raise exception '"'authenticated user required';
+  end if;
+
+  select exists (
+    select 1
+    from public.org_members om
+    where om.user_id = actor_id
+      and om.org_id = next_org_id
+  ) into has_membership;
+
+  if not has_membership then
+    raise exception 'cannot switch to org without membership';
+  end if;
+
+  update public.user_profiles
+  set last_active_org_id = next_org_id
+  where user_id = actor_id;
+
+  update auth.users
+  set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+    || jsonb_build_object('active_org_id', next_org_id::text)
+  where id = actor_id;
+
+  return next_org_id;
+end;
+"'$$;
+
+grant execute on function public.set_active_org(uuid) to authenticated;
+revoke execute on function public.set_active_org(uuid) from anon, public;
+SQL')
+Bash(/bin/bash -lc 'grep -n "custom_access_token" -n supabase/config.toml')
+Bash(/bin/bash -lc "sed -n '268,290p' supabase/config.toml")
+I’m now updating the web side: server-rendering the user’s org memberships and adding a one-click org switcher dropdown that calls `/functions/v1/orgs/switch`, refreshes the session, and reloads with the new active org context.
+Bash(/bin/bash -lc "mkdir -p supabase/functions/orgs && cat > supabase/functions/orgs/index.ts <<'TS'
+import { createClient } from \"npm:@supabase/supabase-js@2\";
+
+const corsHeaders = {
+  \"Access-Control-Allow-Origin\": \"*\",
+  \"Access-Control-Allow-Headers\": \"authorization, x-client-info, apikey, content-type\",
+  \"Access-Control-Allow-Methods\": \"POST, OPTIONS\"
+};
+
+function jsonResponse(body: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      \"Content-Type\": \"application/json\"
+    }
+  });
+}
+
+function isUuid(value: string): boolean {
+  return /"'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  const url = new URL(request.url);
+  if (request.method !== "POST" || url.pathname !== "/orgs/switch") {
+    return jsonResponse({ error: "not_found" }, 404);
+  }
+
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return jsonResponse({ error: "missing_authorization" }, 401);
+  }
+
+  const accessToken = authHeader.slice("Bearer ".length);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return jsonResponse({ error: "missing_supabase_environment" }, 500);
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } }
+  });
+
+  const {
+    data: { user },
+    error: userError
+  } = await supabase.auth.getUser(accessToken);
+
+  if (userError || !user) {
+    return jsonResponse({ error: "unauthenticated" }, 401);
+  }
+
+  let body: { org_id?: unknown };
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: "invalid_json" }, 400);
+  }
+
+  if (typeof body.org_id !== "string" || !isUuid(body.org_id)) {
+    return jsonResponse({ error: "org_id must be a valid uuid" }, 400);
+  }
+
+  const { data: switchedOrgId, error: switchError } = await supabase.rpc("set_active_org", {
+    next_org_id: body.org_id
+  });
+
+  if (switchError) {
+    return jsonResponse({ error: "forbidden_org_switch", details: switchError.message }, 403);
+  }
+
+  return jsonResponse({ active_org_id: switchedOrgId });
+});
+TS')
+Bash(/bin/bash -lc 'nl -ba web/app/page.tsx')
+Core code changes are in place; I’m running the required workspace validation (`npm run typecheck` and `npm run test`) now and will report exact results, including any environment blockers.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'git status --short')
+I need your direction before I continue: I detected unexpected workspace changes that I did not intentionally make during this turn (`web/app/page.tsx`, `web/app/auth-panel.tsx`, and an extra migration `supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql` showed up modified/untracked).  
+
+Per repo rules, I’m stopping here. Should I treat these as intended baseline changes and continue integrating with them, or should I discard them and proceed only with the edits I explicitly made for issue #22?
+I need your direction before I continue: I detected unexpected workspace changes that I did not intentionally make during this turn (`web/app/page.tsx`, `web/app/auth-panel.tsx`, and an extra migration `supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql` appeared modified/untracked).
+
+Per repo rules, I’m stopping here. Should I treat these as intended baseline changes and continue integrating with them, or should I discard them and proceed only with the edits I explicitly made for issue #22?
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Iteration 2/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (1.4s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1467 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue and PRD context first, then inspect the current tenancy/auth schema and tests so I can implement only issue #22 acceptance criteria on the requested branch.
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'git status --short --branch && ls -la')
+I found pre-existing uncommitted changes on the target branch (including issue-22 migration/test/UI files) that I did not create. Per repo safety rules, should I proceed by reviewing and finishing these changes in place, or do you want me to discard/ignore them and reimplement from current `HEAD`?
+I found pre-existing uncommitted changes on the target branch (including issue-22 migration/test/UI files) that I did not create. Per repo safety rules, should I proceed by reviewing and finishing these changes in place, or do you want me to reimplement from current `HEAD` and ignore those drafts?
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent idle for 1 minute
+Iteration 3/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1467 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+Bash(/bin/bash -lc 'npm run test')
+I’m implementing issue #22 end-to-end on the specified branch, starting by pulling the issue details/comments, parent PRD issue, and repo docs/tests so the acceptance criteria drive all changes.
+Bash(/bin/bash -lc 'git rev-parse --abbrev-ref HEAD && git status --short')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'gh issue view 22 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I found a dirty worktree before making any edits: `supabase/config.toml`, `web/app/auth-panel.tsx`, `web/app/page.tsx`, plus new issue-22 migration/test/function files are already present. I need your direction: should I build on top of these existing uncommitted changes, or should I ignore/reset them and re-implement issue #22 cleanly?
+I found a dirty worktree before making any edits: `supabase/config.toml`, `web/app/auth-panel.tsx`, `web/app/page.tsx`, plus new issue-22 migration/test/function files are already present. I need your direction: should I build on top of these existing uncommitted changes, or should I ignore/reset them and re-implement issue #22 cleanly?
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Iteration 4/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (2.3s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1467 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’ll pull issue `#22` and its comments, then load `issue #1`, `docs/PRD.md`, and `AGENTS.md` to extract the exact contract before touching code. After that I’ll inspect current auth/tenancy code and tests, then implement only what the acceptance criteria requires.
+Bash(/bin/bash -lc "cd /home/agent/workspace && ls && echo '---' && cat AGENTS.md")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' docs/PRD.md")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 1 --comments')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 22 --comments')
+I’ve loaded the repo conventions and PRD baseline. Next I need the exact issue contract, so I’m re-running `gh issue view` with explicit output capture to pull `#22` and `#1` details.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 1 --comments --json number,title,body,comments,labels,assignees,state,url')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 22 --comments --json number,title,body,comments,labels,assignees,state,url')
+I have the exact issue contract now. I’ll switch to the required branch and inspect existing tenancy/auth code plus tests so I can implement issue `#22` with a strict RED→GREEN loop.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch && git checkout sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui && git status --short --branch')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && rg --files')
+Bash(/bin/bash -lc "cd /home/agent/workspace && rg -n \"current_active_org|org_members|user_profiles|active_org|orgs/switch|auth|membership|RLS|organization\" supabase web docs -g '"'!**/node_modules/**'"'")
+Typecheck passed. Test execution reached the Supabase DB step and failed because the local Supabase Postgres instance isn’t running on `127.0.0.1:54322` (same environment blocker as prior issue). I’m doing a final review of diffs, then I’ll commit with the required message format.
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc 'git diff -- supabase/functions/orgs/index.ts')
+Bash(/bin/bash -lc 'git diff -- supabase/tests/issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc 'git diff -- supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql')
+Bash(/bin/bash -lc 'git diff -- web/app/page.tsx web/app/auth-panel.tsx supabase/config.toml')
+`rg` isn’t installed in this environment, so I’m switching to `find`/`grep`. I also see existing uncommitted issue-22-related changes on this branch, so I’ll review them carefully and continue without reverting unrelated work.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && find supabase web docs -type f | sort')
+Bash(/bin/bash -lc "cd /home/agent/workspace && grep -RIn \"current_active_org\\|org_members\\|user_profiles\\|active_org\\|orgs/switch\\|custom_access_token\\|access token hook\\|auth.jwt\\|organizations\" supabase web docs --exclude-dir=node_modules")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git diff -- supabase/config.toml web/app/auth-panel.tsx web/app/page.tsx supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql supabase/tests/issue_22_multi_org_active_org_switch.sql supabase/functions/orgs/switch/index.ts')
+Bash(/bin/bash -lc "ls -l supabase/migrations; echo '---'; cat supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql")
+I found partially implemented issue-22 changes already in the branch. I’ll now read those new migration/function/test files in detail, then run tests to see what still fails against acceptance criteria.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/functions/orgs/index.ts")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/tests/issue_22_multi_org_active_org_switch.sql")
+I’ve confirmed most of issue-22 work is partially scaffolded, including a switch endpoint and SQL tests. Next I’m validating schema/function details against issue acceptance and then I’ll run RED tests to identify exact gaps.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,280p' supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql")
+Bash(/bin/bash -lc "cd /home/agent/workspace && cat package.json && echo '---' && cat supabase/package.json && echo '---' && cat web/package.json")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' web/app/auth-panel.tsx && echo '---' && sed -n '1,260p' web/app/page.tsx")
+I found two issue-22 migration files in the branch; I’m consolidating to a single migration to avoid conflicting function definitions and keep schema history clean. Then I’ll align the Edge Function to that single DB contract.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '600,700p' docs/PRD.md")
+Bash(/bin/bash -lc "cat > supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql <<'SQL'
+create or replace function public.custom_access_token_hook(event jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as "'$$
+declare
+  claims jsonb := coalesce(event->'"'claims', '{}'::jsonb);
+  app_metadata jsonb := coalesce(claims->'app_metadata', '{}'::jsonb);
+  target_user_id uuid := (event->>'user_id')::uuid;
+  preferred_org_id uuid;
+begin
+  select case
+      when up.last_active_org_id is not null
+        and exists (
+          select 1
+          from public.org_members om
+          where om.user_id = up.user_id
+            and om.org_id = up.last_active_org_id
+        ) then up.last_active_org_id
+      when up.personal_org_id is not null
+        and exists (
+          select 1
+          from public.org_members om
+          where om.user_id = up.user_id
+            and om.org_id = up.personal_org_id
+        ) then up.personal_org_id
+      else null
+    end
+  into preferred_org_id
+  from public.user_profiles up
+  where up.user_id = target_user_id;
+
+  if preferred_org_id is not null then
+    claims := jsonb_set(
+      claims,
+      '{app_metadata}',
+      app_metadata || jsonb_build_object('active_org_id', preferred_org_id::text),
+      true
+    );
+  else
+    claims := jsonb_set(
+      claims,
+      '{app_metadata}',
+      app_metadata - 'active_org_id',
+      true
+    );
+  end if;
+
+  return jsonb_build_object('claims', claims);
+end;
+"'$$;
+
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.custom_access_token_hook(jsonb) to supabase_auth_admin;
+revoke execute on function public.custom_access_token_hook(jsonb) from anon, authenticated, public;
+
+create or replace function public.set_active_org(next_org_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor_id uuid := auth.uid();
+  has_membership boolean;
+begin
+  if actor_id is null then
+    raise exception '"'authenticated user required';
+  end if;
+
+  select exists (
+    select 1
+    from public.org_members om
+    where om.user_id = actor_id
+      and om.org_id = next_org_id
+  ) into has_membership;
+
+  if not has_membership then
+    raise exception 'cannot switch to org without membership';
+  end if;
+
+  update public.user_profiles
+  set last_active_org_id = next_org_id
+  where user_id = actor_id;
+
+  update auth.users
+  set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
+    || jsonb_build_object('active_org_id', next_org_id::text)
+  where id = actor_id;
+
+  return next_org_id;
+end;
+"'$$;
+
+grant execute on function public.set_active_org(uuid) to authenticated;
+revoke execute on function public.set_active_org(uuid) from anon, public;
+
+grant select on public.organizations to authenticated;
+grant select on public.org_members to authenticated;
+grant select on public.user_profiles to authenticated;
+
+alter table public.organizations enable row level security;
+alter table public.org_members enable row level security;
+alter table public.user_profiles enable row level security;
+
+drop policy if exists organizations_member_read on public.organizations;
+create policy organizations_member_read on public.organizations
+for select
+using (
+  exists (
+    select 1
+    from public.org_members om
+    where om.org_id = organizations.id
+      and om.user_id = auth.uid()
+  )
+);
+
+drop policy if exists org_members_self_read on public.org_members;
+create policy org_members_self_read on public.org_members
+for select
+using (user_id = auth.uid());
+
+drop policy if exists user_profiles_self_read on public.user_profiles;
+create policy user_profiles_self_read on public.user_profiles
+for select
+using (user_id = auth.uid());
+SQL')
+Bash(/bin/bash -lc 'rm -f supabase/migrations/20260510003000_issue_22_multi_org_active_org_hook.sql')
+I’ve consolidated the migration into one file and I’m now simplifying the Edge Function to call a single DB RPC (`set_active_org`) that performs membership verification and metadata updates atomically.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/tests/issue_21_auth_tenancy.sql")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && find supabase/functions -maxdepth 4 -type f -print')
+I have enough context and a clear gap list. Plan:
+
+1. Add/adjust a RED SQL test around issue-22 behavior that is currently under-specified or fragile.
+2. Update the SQL migration/functions to satisfy that test and keep strict issue scope:
+   - active-org claim resolution on token issuance
+   - org-switch membership validation and metadata update
+   - stale JWT revocation behavior via `current_active_org()`
+3. Tighten the org switch Edge Function and Next.js org switcher wiring only where needed by acceptance criteria.
+4. Run required checks: `npm run typecheck` and `npm run test`.
+5. Commit with the required `RALPH:` message format.
+
+I’m starting with the RED test now.
+Bash(/bin/bash -lc 'cat supabase/functions/orgs/index.ts')
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc "find supabase/functions/orgs -maxdepth 2 -type f -print -exec sed -n '1,220p' {} \\;")
+I’m running typecheck now to detect concrete breakpoints before adjusting tests and implementation further.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run typecheck')
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Typecheck is clean. Next I’m running the full test command to validate DB tests and identify any remaining issue-22 gaps.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run test')
+Bash(/bin/bash -lc 'git diff -- supabase/tests/issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc 'git diff -- supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc 'git diff -- supabase/functions/orgs/index.ts')
+Bash(/bin/bash -lc 'git diff -- web/app/page.tsx web/app/auth-panel.tsx supabase/config.toml')
+Bash(/bin/bash -lc 'cat supabase/tests/issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc 'cat supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc 'cat supabase/functions/orgs/index.ts')
+Bash(/bin/bash -lc 'cat supabase/tests/issue_22_multi_org_active_org_switch.sql')
+I’m making two targeted edits now: hardening the issue-22 SQL test (including a non-member switch rejection check and fixing ambiguous variable references), and making the org switch Edge Function route matcher tolerant to both likely pathname forms.
+I fixed a test correctness bug (variable shadowing) and tightened the switcher behavior for users with no active-org claim yet. I’m making one last pass on error handling in the Edge Function before commit.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc "cd /home/agent/workspace && nl -ba supabase/tests/issue_22_multi_org_active_org_switch.sql | sed -n '1,260p'")
+I’m at finalization: staging the issue-22 changes and committing with the required `RALPH:` structured message, including PRD references and test blocker notes.
+Bash(/bin/bash -lc 'git add supabase/config.toml supabase/functions/orgs/index.ts supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql supabase/tests/issue_22_multi_org_active_org_switch.sql web/app/auth-panel.tsx web/app/page.tsx && git commit -m "RALPH: complete issue #22 multi-org membership + active-org JWT + org switcher (PRD AD-2/AD-3/AD-9)
+
+Task completed + PRD reference:
+- Implemented issue #22 contract aligned to docs/PRD.md AD-2 (active-org JWT claim), AD-3 (membership-verified current_active_org revocation), and AD-9 (last_active_org_id -> personal-org defaulting).
+
+Key decisions made:
+- Added Postgres custom access token hook to set claims.app_metadata.active_org_id using user_profiles.last_active_org_id with membership validation and personal-org fallback.
+- Added security-definer RPC set_active_org(uuid) for org switching; validates membership, updates user_profiles.last_active_org_id, and syncs auth.users raw_app_meta_data.
+- Added authenticated read grants + RLS policies on organizations/org_members/user_profiles to support safe org switcher listing.
+- Added Supabase Edge Function route POST /functions/v1/orgs/switch wired to set_active_org RPC.
+- Updated Next.js auth panel to render one-click org dropdown, call org switch endpoint, refresh session, and reload.
+- Added issue #22 SQL test covering hook defaulting, org-switch data scoping, and stale-JWT replay revocation after org_members delete.
+
+Files changed:
+- supabase/config.toml
+- supabase/functions/orgs/index.ts
+- supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql
+- supabase/tests/issue_22_multi_org_active_org_switch.sql
+- web/app/page.tsx
+- web/app/auth-panel.tsx
+
+Blockers or notes for next iteration:
+- npm run test still fails in this environment because Supabase local DB is not running (127.0.0.1:54322 connection refused), so SQL tests could not be executed here end-to-end."')
+Bash(/bin/bash -lc 'git status --short --branch')
+Implemented issue #22 on branch `sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui` and committed as `edfdbdd`.
+
+Changes made:
+- Added Custom Access Token Hook + org switch RPC + membership-safe read RLS in migration: [20260509234000_issue_22_multi_org_active_org_switch.sql](/home/agent/workspace/supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql)
+- Enabled hook in Supabase config: [config.toml](/home/agent/workspace/supabase/config.toml)
+- Added `POST /functions/v1/orgs/switch` Edge Function handler: [index.ts](/home/agent/workspace/supabase/functions/orgs/index.ts)
+- Added issue-22 SQL test for hook defaults, org switching behavior, and stale-JWT replay revocation: [issue_22_multi_org_active_org_switch.sql](/home/agent/workspace/supabase/tests/issue_22_multi_org_active_org_switch.sql)
+- Added Next.js org switcher UI wired to endpoint + session refresh: [page.tsx](/home/agent/workspace/web/app/page.tsx), [auth-panel.tsx](/home/agent/workspace/web/app/auth-panel.tsx)
+
+Validation:
+- `npm run typecheck` passed.
+- `npm run test` failed due local Supabase DB not running at `127.0.0.1:54322` (environment blocker).
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+I’ve applied the targeted fixes. I’m now reviewing the exact diff to ensure it stays within issue-22 scope, then I’ll rerun typecheck and tests.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git diff -- supabase/functions/orgs/index.ts supabase/tests/issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc "cd /home/agent/workspace && nl -ba supabase/functions/orgs/index.ts | sed -n '1,220p' && echo '---' && nl -ba supabase/tests/issue_22_multi_org_active_org_switch.sql | sed -n '1,240p'")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch')
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git log --oneline --decorate -n 8')
+I discovered this branch already contains a prior issue-22 implementation commit (`edfdbdd`), so I’m treating this as a targeted hardening pass on top of that work. I’ll re-run required checks now after the route fix.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run typecheck')
+Typecheck still passes. I’m running `npm run test` again to record the latest state before committing.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run test')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git diff -- supabase/functions/orgs/index.ts')
+I’m committing this final issue-22 hardening change now with the required `RALPH:` commit format.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git add supabase/functions/orgs/index.ts && git commit -m "RALPH: harden issue #22 org switch route handling (PRD AD-2/AD-3)" -m "Task completed + PRD reference:
+- Hardened issue #22 org switch Edge Function route matching to reliably support the PRD contract path /functions/v1/orgs/switch (AD-2 active-org switching API, AD-3 membership-scoped tenancy enforcement path).
+
+Key decisions made:
+- Normalize trailing slashes in request pathname.
+- Accept both /orgs/switch and /switch inside the function runtime to tolerate Supabase gateway pathname variants.
+- Keep auth, membership validation, and RPC behavior unchanged.
+
+Files changed:
+- supabase/functions/orgs/index.ts
+
+Blockers or notes for next iteration:
+- npm run test still requires a running local Supabase DB; current environment has no local Postgres at 127.0.0.1:54322."')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch && git log --oneline -n 3')
+Implemented on `sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui`.
+
+- Existing issue-22 implementation was already present in commit `edfdbdd` (hook + switch RPC + UI + SQL coverage).
+- I added a hardening fix so the switch function reliably matches the contract route path variant:
+  - [supabase/functions/orgs/index.ts](/home/agent/workspace/supabase/functions/orgs/index.ts)
+
+New commit:
+- `78003c8`  
+- Message: `RALPH: harden issue #22 org switch route handling (PRD AD-2/AD-3)`
+
+Checks run:
+- `npm run typecheck` ✅
+- `npm run test` ❌ (blocked: local Supabase/Postgres not running at `127.0.0.1:54322` in this environment)
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 4 iteration(s).
+Run complete: agent finished after 4 iteration(s).
+
+--- Run started: 2026-05-09T21:13:04.219Z ---
+Sandcastle Run
+  Agent: implementer-22
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (13.3s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1791 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue contract and PRD context first, then inspect the current branch/files and tests for issue #22 before making any edits. I’ll verify what is already implemented and then drive any remaining work with a RED→GREEN test loop.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat AGENTS.md')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && ls -la')
+I confirmed we’re already on the target branch and clean. Next I’ll fetch issue #22 and parent issue #1 with comments, then read `docs/PRD.md` to align strictly to acceptance criteria.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat docs/PRD.md')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 22 --comments')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 1 --comments')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && GH_PAGER=cat gh issue view 22 --comments')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 22 --json number,title,body,comments,author,url,state')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 1 --json number,title,body,comments,author,url,state')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh auth status')
+I’ve pulled the authoritative issue contract and parent PRD context. Next I’m inspecting the current issue #22 implementation and tests to identify any acceptance gaps before writing a new RED test.
+Bash(/bin/bash -lc "cd /home/agent/workspace && rg --files | rg 'issue_22|orgs|auth-panel|user_profiles|current_active_org|active_org|switch'")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git log --oneline --decorate -n 12')
+Bash(/bin/bash -lc "cd /home/agent/workspace && rg -n \"active_org_id|last_active_org_id|set_active_org|orgs/switch|current_active_org\\(\\)|org_members\" supabase web")
+`rg` isn’t available in this environment, so I’m switching to `find`/`grep` to continue code and test discovery. I’ll now open the issue #22 migration, function, UI, and SQL test files directly.
+Bash(/bin/bash -lc "cd /home/agent/workspace && find supabase web -type f | grep -E 'issue_22|orgs|auth-panel|page.tsx|migration|tests'")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,320p' supabase/tests/issue_22_multi_org_active_org_switch.sql")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,280p' web/app/auth-panel.tsx")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/functions/orgs/index.ts")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,280p' web/app/page.tsx")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/config.toml")
+I found the core implementation in place; I’m now checking Supabase auth config and existing test coverage for any contract gap, then I’ll add one focused RED test if needed.
+Bash(/bin/bash -lc "cd /home/agent/workspace && grep -n \"hook\\|custom_access_token\\|access_token\" -n supabase/config.toml")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '250,320p' supabase/config.toml")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,340p' supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql")
+I’ve confirmed the hook is enabled in `supabase/config.toml` and the migration aligns with PRD AD-2/AD-3. I’m now checking available test/runtime scripts so I can add one targeted RED test in the existing SQL test harness and run the required checks.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat package.json')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat supabase/package.json')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && find supabase/functions -maxdepth 3 -type f -print')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat web/package.json')
+Bash(/bin/bash -lc "cd /home/agent/workspace && find supabase -maxdepth 3 -type f | grep -E 'test|spec|deno|vitest|jest|sql'")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat docs/agents/issue-tracker.md')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat docs/agents/domain.md')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat docs/agents/triage-labels.md')
+I’m also pulling `CONTEXT.md` and ADRs now to stay aligned with the repo’s domain vocabulary and locked decisions while finalizing the issue #22 scope.
+Bash(/bin/bash -lc "cd /home/agent/workspace && ls -la docs/adr && find docs/adr -maxdepth 2 -type f -name '*.md' -print")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && for f in docs/adr/*.md; do echo "===== $f"; sed -n '"'1,220p' \""'$f"; done')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat CONTEXT.md')
+I found one acceptance-aligned gap in test coverage: we don’t assert fallback behavior when `last_active_org_id` is set to an org the user is no longer a member of. I’m adding that case to the issue #22 SQL test now (RED target), then I’ll run the required checks.
+I’ve added the new fallback test case for stale `last_active_org_id` membership. Next I’ll run typecheck and test scripts as requested, then adjust implementation only if this reveals a failing acceptance behavior.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git diff -- supabase/tests/issue_22_multi_org_active_org_switch.sql')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run typecheck')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run test')
+Typecheck/test are still running; I’m polling both sessions to capture final pass/fail status and confirm whether any implementation change is needed beyond the new test coverage.
+Agent idle for 1 minute
+Both commands are still in progress. `npm run test` has reached Supabase DB tests and is now executing `supabase test db`; I’m waiting for final status and any failure details.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short')
+I finished the test addition and completed required verification loops: `npm run typecheck` passed; `npm run test` fails only at Supabase DB connectivity (`127.0.0.1:54322` not running in this environment). I’ll commit the acceptance-coverage change now.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git add supabase/tests/issue_22_multi_org_active_org_switch.sql && git commit -m "RALPH: harden issue #22 active-org hook fallback coverage (PRD AD-2/AD-3/AD-9)" -m "Task completed + PRD reference:
+- Hardened issue #22 acceptance coverage for multi-org JWT active-org selection logic aligned to docs/PRD.md AD-2 (active-org JWT claim), AD-3 (membership-verified tenancy), and AD-9 (fallback to personal org).
+
+Key decisions made:
+- Added SQL test assertion that custom_access_token_hook must ignore a non-member last_active_org_id and fallback to personal_org_id.
+- Reused existing issue #22 fixture user/org setup to keep test deterministic and scoped strictly to acceptance criteria.
+
+Files changed:
+- supabase/tests/issue_22_multi_org_active_org_switch.sql
+
+Blockers or notes for next iteration:
+- npm run typecheck passes.
+- npm run test still requires a running local Supabase DB; current environment has no Postgres at 127.0.0.1:54322."')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch && git log --oneline -n 3')
+Bash(/bin/bash -lc "cd /home/agent/workspace && nl -ba supabase/tests/issue_22_multi_org_active_org_switch.sql | sed -n '40,160p'")
+Implemented issue #22 on branch `sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui` and added missing acceptance-coverage for active-org fallback behavior.
+
+Change made:
+- Added SQL test coverage to assert `custom_access_token_hook` ignores a non-member `last_active_org_id` and falls back to `personal_org_id`: [issue_22_multi_org_active_org_switch.sql](/home/agent/workspace/supabase/tests/issue_22_multi_org_active_org_switch.sql#L97)
+
+Verification:
+- `npm run typecheck` passed.
+- `npm run test` failed only at Supabase DB connectivity: `127.0.0.1:54322 connection refused` (local DB not running in this environment).
+
+Commit:
+- `489b14e`  
+- Message: `RALPH: harden issue #22 active-org hook fallback coverage (PRD AD-2/AD-3/AD-9)`
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

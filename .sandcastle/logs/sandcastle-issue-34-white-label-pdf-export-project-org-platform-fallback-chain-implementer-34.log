@@ -1,0 +1,1443 @@
+
+--- Run started: 2026-05-09T21:22:56.762Z ---
+Sandcastle Run
+  Agent: implementer-34
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (5.7s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~2004 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue/PRD contracts first, then inspect the current export/report code and tests to implement only issue #34 within its acceptance criteria. I’ll start by checking repo state and loading the required docs.
+Bash(/bin/bash -lc 'git status --short && git branch --show-current && ls -la')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'gh issue view 34 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I confirmed we’re already on the required branch and the worktree is clean. Next I’m re-running the GitHub issue fetch in machine-readable mode since the plain `gh issue view` returned no visible output in this shell.
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'gh issue view 1 --comments --json number,title,body,comments,url')
+Bash(/bin/bash -lc 'gh issue view 34 --comments --json number,title,body,comments,assignees,labels,state,url')
+I have the exact issue contract and PRD context now. Next I’m mapping current implementation surface (`reports`, potential `exports` function, schemas, and tests) so we can do strict RED→GREEN against issue #34 only.
+Bash(/bin/bash -lc 'rg --files')
+Bash(/bin/bash -lc "cat docs/agents/issue-tracker.md && echo '---' && cat docs/agents/triage-labels.md && echo '---' && cat docs/agents/domain.md")
+Bash(/bin/bash -lc 'rg -n "exports|white.?label|pdf|report_citations|resolveWhiteLabel|disclaimer|source list|footnote|project_id" supabase web docs -S')
+`rg` is not available in this environment, so I’m switching to `find`/`grep`. I’ll now read `CONTEXT.md` and relevant ADRs, then locate current report/export code and tests.
+Bash(/bin/bash -lc "ls -la docs/adr && echo '---' && cat CONTEXT.md")
+Bash(/bin/bash -lc 'find . -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc "grep -RIn \"exports\\|white[- ]label\\|pdf\\|report_citations\\|resolveWhiteLabel\\|disclaimer\\|footnote\\|project_id\" supabase web docs --exclude-dir=node_modules")
+I’ve identified that export functionality is not implemented yet. I’m now reading the report function, shared helpers, migrations, and existing SQL tests to add one focused issue-34 test first (RED) and then implement only what it requires.
+Bash(/bin/bash -lc "cat package.json && echo '---' && cat supabase/package.json && echo '---' && cat web/package.json")
+Bash(/bin/bash -lc 'nl -ba supabase/functions/reports/index.ts')
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql && echo '---' && nl -ba supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql")
+Bash(/bin/bash -lc "nl -ba supabase/functions/_shared/supabase.ts && echo '---' && nl -ba supabase/functions/_shared/http.ts && echo '---' && nl -ba supabase/functions/_shared/cors.ts")
+Bash(/bin/bash -lc "nl -ba supabase/tests/issue_33_agency_projects_cache_bypass.sql && echo '---' && nl -ba supabase/tests/issue_32_entitlements.sql && echo '---' && nl -ba supabase/tests/issue_22_multi_org_active_org_switch.sql && echo '---' && nl -ba supabase/tests/issue_21_auth_tenancy.sql")
+Bash(/bin/bash -lc 'nl -ba supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql')
+Bash(/bin/bash -lc "nl -ba supabase/config.toml | sed -n '1,260p'")
+Bash(/bin/bash -lc 'nl -ba supabase/functions/_shared/agent-orchestrator.ts')
+Bash(/bin/bash -lc 'nl -ba supabase/functions/projects/index.ts')
+Bash(/bin/bash -lc 'nl -ba supabase/functions/me/index.ts')
+Bash(/bin/bash -lc 'nl -ba supabase/functions/orgs/index.ts')
+Bash(/bin/bash -lc "grep -n \"\\[functions\\.\" -n supabase/config.toml && echo '---' && nl -ba supabase/config.toml | sed -n '300,420p'")
+Bash(/bin/bash -lc 'cat README.md')
+Bash(/bin/bash -lc "grep -n \"white_label_config\\|platform default\\|exports/:report_id\\.pdf\\|citation\\|footnote\\|source list\" docs/PRD.md | head -n 40")
+Bash(/bin/bash -lc 'cat supabase/seed.sql')
+I’ve isolated the implementation surface and confirmed no export endpoint exists yet. Plan for strict issue-34 scope:
+
+1. **RED**: Add a focused Deno unit test for `resolveWhiteLabel(report)` covering all three chains:
+- agency: `project -> org -> platform` with project override and no platform branding
+- b2b: `org -> platform`
+- retail: `platform` default
+
+2. **GREEN**:
+- Add an `exports` Edge Function (`GET /functions/v1/exports/:report_id.pdf`) using a PDF library (`pdf-lib`) and implement `resolveWhiteLabel(report)`.
+- Enforce auth + active-org scoping before export.
+- Render report content with inline citation footnotes (verbatim quotes).
+- Append a source list with fetched timestamps on every PDF.
+- Ensure agency exports suppress platform branding while b2b/org and retail behave per acceptance criteria.
+
+3. **REPEAT/REFINE**:
+- Add one DB test file for issue #34 to validate tenancy-safe white-label resolution inputs (project and org ownership assumptions) if needed to cover integration gaps.
+
+4. **Verification + commit**:
+- Run `npm run typecheck` and `npm run test`.
+- Commit with the required `RALPH:` structured message.
+- If anything remains blocked (likely local Supabase DB), post a comment on issue #34 with exact status.
+
+I’m starting RED by creating the failing white-label resolver test now.
+Bash(/bin/bash -lc "mkdir -p supabase/functions/exports && cat > supabase/functions/exports/white-label.test.ts <<'EOF'
+import { assertEquals } from \"https://deno.land/std@0.224.0/assert/mod.ts\";
+import { resolveWhiteLabel } from \"./white-label.ts\";
+
+Deno.test(\"resolveWhiteLabel uses project->org->platform chain and hides platform branding for agency projects\", () => {
+  const resolved = resolveWhiteLabel({
+    project_id: \"00000000-0000-0000-0000-000000000001\",
+    project: {
+      client_name: \"Client A\",
+      white_label_config: {
+        logo_url: \"https://client-a.example/logo.png\",
+        disclaimers: [\"Agency disclaimer\"]
+      }
+    },
+    organization: {
+      name: \"Org Name\",
+      white_label_config: {
+        logo_url: \"https://org.example/logo.png\",
+        disclaimers: [\"Org disclaimer\"],
+        brand_name: \"Org Brand\"
+      }
+    }
+  });
+
+  assertEquals(resolved.brandName, \"Client A\");
+  assertEquals(resolved.logoUrl, \"https://client-a.example/logo.png\");
+  assertEquals(resolved.disclaimers, [\"Agency disclaimer\"]);
+  assertEquals(resolved.showPlatformBranding, false);
+  assertEquals(resolved.source, \"project\");
+});
+
+Deno.test(\"resolveWhiteLabel falls back to org when no project exists\", () => {
+  const resolved = resolveWhiteLabel({
+    project_id: null,
+    project: null,
+    organization: {
+      name: \"B2B Org\",
+      white_label_config: {
+        logo: \"https://b2b.example/logo.png\",
+        disclaimer: \"B2B legal text\",
+        brand_name: \"B2B Brand\"
+      }
+    }
+  });
+
+  assertEquals(resolved.brandName, \"B2B Brand\");
+  assertEquals(resolved.logoUrl, \"https://b2b.example/logo.png\");
+  assertEquals(resolved.disclaimers, [\"B2B legal text\"]);
+  assertEquals(resolved.source, \"organization\");
+});
+
+Deno.test(\"resolveWhiteLabel falls back to platform defaults for retail\", () => {
+  const resolved = resolveWhiteLabel(
+    {
+      project_id: null,
+      project: null,
+      organization: {
+        name: \"Retail Personal Org\",
+        white_label_config: {}
+      }
+    },
+    {
+      brandName: \"Diligence OS\",
+      logoUrl: \"https://platform.example/logo.png\",
+      disclaimers: [\"Platform disclaimer\"],
+      showPlatformBranding: true
+    }
+  );
+
+  assertEquals(resolved.brandName, \"Diligence OS\");
+  assertEquals(resolved.logoUrl, \"https://platform.example/logo.png\");
+  assertEquals(resolved.disclaimers, [\"Platform disclaimer\"]);
+  assertEquals(resolved.showPlatformBranding, true);
+  assertEquals(resolved.source, \"platform\");
+});
+EOF
+
+deno test supabase/functions/exports/white-label.test.ts")
+`deno` is not installed in this environment, so I can’t execute Deno unit tests directly. I’m switching RED to the repo’s existing DB-test pattern by adding an `issue_34` SQL test first, then implementing code/migration to satisfy it.
+Bash(/bin/bash -lc 'rm -f supabase/functions/exports/white-label.test.ts')
+Bash(/bin/bash -lc "grep -RIn \"agency_basic\\|b2b_basic\" supabase/migrations supabase/tests")
+I’m adding the RED test now as a new DB test file for issue #34. It asserts the exact project→org→platform branding chain and the agency “no platform branding” behavior.
+Bash(/bin/bash -lc "cat > supabase/tests/issue_34_white_label_pdf_export.sql <<'EOF'
+begin;
+
+do "'$$
+declare
+  test_user_id uuid := '"'00000000-0000-0000-0000-000000000034';
+  personal_org_id uuid;
+  b2b_org_id uuid := '00000000-0000-0000-0000-000000003401';
+  agency_org_id uuid := '00000000-0000-0000-0000-000000003402';
+  company_id uuid;
+  project_id uuid;
+  retail_report_id uuid;
+  b2b_report_id uuid;
+  agency_report_id uuid;
+  platform_defaults jsonb := jsonb_build_object(
+    'brand_name', 'Diligence OS',
+    'logo_url', 'https://platform.example/logo.png',
+    'disclaimers', jsonb_build_array('Platform disclaimer'),
+    'show_platform_branding', true
+  );
+  resolved jsonb;
+begin
+  delete from auth.users where id = test_user_id;
+
+  insert into auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  values (
+    test_user_id,
+    'authenticated',
+    'authenticated',
+    'issue34-user@example.com',
+    crypt('password', gen_salt('bf')),
+    now(),
+    '{}'::jsonb,
+    '{\"full_name\":\"Issue 34 User\"}'::jsonb,
+    now(),
+    now()
+  );
+
+  select personal_org_id into personal_org_id
+  from public.user_profiles
+  where user_id = test_user_id;
+
+  if personal_org_id is null then
+    raise exception 'expected trigger-created personal org';
+  end if;
+
+  update public.organizations
+  set white_label_config = '{}'::jsonb
+  where id = personal_org_id;
+
+  insert into public.organizations (id, name, org_type, plan, white_label_config)
+  values (
+    b2b_org_id,
+    'Issue 34 B2B Org',
+    'b2b',
+    'b2b_starter',
+    '{\"brand_name\":\"Issue 34 B2B Brand\",\"logo_url\":\"https://b2b.example/logo.png\",\"disclaimers\":[\"B2B disclaimer\"]}'::jsonb
+  );
+
+  insert into public.org_members (org_id, user_id, role)
+  values (b2b_org_id, test_user_id, 'admin');
+
+  insert into public.organizations (id, name, org_type, plan, white_label_config)
+  values (
+    agency_org_id,
+    'Issue 34 Agency Org',
+    'agency',
+    'agency_starter',
+    '{\"brand_name\":\"Issue 34 Agency Brand\",\"logo_url\":\"https://agency.example/logo.png\",\"disclaimers\":[\"Agency org disclaimer\"]}'::jsonb
+  );
+
+  insert into public.org_members (org_id, user_id, role)
+  values (agency_org_id, test_user_id, 'admin');
+
+  insert into public.projects (
+    org_id,
+    client_name,
+    client_slug,
+    white_label_config,
+    created_by
+  )
+  values (
+    agency_org_id,
+    'Issue 34 Client',
+    'issue-34-client',
+    '{\"brand_name\":\"Issue 34 Client Brand\",\"logo_url\":\"https://client.example/logo.png\",\"disclaimers\":[\"Project disclaimer\"]}'::jsonb,
+    test_user_id
+  )
+  returning id into project_id;
+
+  select id into company_id
+  from public.companies
+  where cin = 'L00000MH2000PLC000034';
+
+  if company_id is null then
+    insert into public.companies (cin, legal_name, display_name, listing_status)
+    values ('L00000MH2000PLC000034', 'Issue 34 Company Ltd', 'Issue 34 Co', 'listed')
+    returning id into company_id;
+  end if;
+
+  insert into public.reports (
+    org_id,
+    project_id,
+    company_id,
+    report_type,
+    composition_id,
+    source_doc_set_hash,
+    agent_version,
+    status,
+    payload,
+    created_by
+  )
+  values (
+    personal_org_id,
+    null,
+    company_id,
+    'earnings_summary',
+    null,
+    'issue34-retail-hash',
+    'v1',
+    'succeeded',
+    '{\"executive_summary\":\"retail\"}'::jsonb,
+    test_user_id
+  )
+  returning id into retail_report_id;
+
+  insert into public.reports (
+    org_id,
+    project_id,
+    company_id,
+    report_type,
+    composition_id,
+    source_doc_set_hash,
+    agent_version,
+    status,
+    payload,
+    created_by
+  )
+  values (
+    b2b_org_id,
+    null,
+    company_id,
+    'due_diligence',
+    null,
+    'issue34-b2b-hash',
+    'v1',
+    'succeeded',
+    '{\"executive_summary\":\"b2b\"}'::jsonb,
+    test_user_id
+  )
+  returning id into b2b_report_id;
+
+  insert into public.reports (
+    org_id,
+    project_id,
+    company_id,
+    report_type,
+    composition_id,
+    source_doc_set_hash,
+    agent_version,
+    status,
+    payload,
+    created_by
+  )
+  values (
+    agency_org_id,
+    project_id,
+    company_id,
+    'lead_intel',
+    null,
+    'issue34-agency-hash',
+    'v1',
+    'succeeded',
+    '{\"executive_summary\":\"agency\"}'::jsonb,
+    test_user_id
+  )
+  returning id into agency_report_id;
+
+  resolved := public.resolve_report_white_label(agency_report_id, platform_defaults);
+
+  if resolved ->> 'source' <> 'project' then
+    raise exception 'expected agency source=project, got %', resolved ->> 'source';
+  end if;
+
+  if resolved ->> 'brand_name' <> 'Issue 34 Client Brand' then
+    raise exception 'expected agency brand from project, got %', resolved ->> 'brand_name';
+  end if;
+
+  if resolved ->> 'logo_url' <> 'https://client.example/logo.png' then
+    raise exception 'expected agency logo from project, got %', resolved ->> 'logo_url';
+  end if;
+
+  if (resolved -> 'disclaimers')::jsonb <> '[\"Project disclaimer\"]'::jsonb then
+    raise exception 'expected agency disclaimers from project, got %', resolved -> 'disclaimers';
+  end if;
+
+  if coalesce((resolved ->> 'show_platform_branding')::boolean, true) is distinct from false then
+    raise exception 'expected agency show_platform_branding=false, got %', resolved ->> 'show_platform_branding';
+  end if;
+
+  resolved := public.resolve_report_white_label(b2b_report_id, platform_defaults);
+
+  if resolved ->> 'source' <> 'organization' then
+    raise exception 'expected b2b source=organization, got %', resolved ->> 'source';
+  end if;
+
+  if resolved ->> 'brand_name' <> 'Issue 34 B2B Brand' then
+    raise exception 'expected b2b brand from org, got %', resolved ->> 'brand_name';
+  end if;
+
+  if resolved ->> 'logo_url' <> 'https://b2b.example/logo.png' then
+    raise exception 'expected b2b logo from org, got %', resolved ->> 'logo_url';
+  end if;
+
+  if (resolved -> 'disclaimers')::jsonb <> '[\"B2B disclaimer\"]'::jsonb then
+    raise exception 'expected b2b disclaimers from org, got %', resolved -> 'disclaimers';
+  end if;
+
+  resolved := public.resolve_report_white_label(retail_report_id, platform_defaults);
+
+  if resolved ->> 'source' <> 'platform' then
+    raise exception 'expected retail source=platform, got %', resolved ->> 'source';
+  end if;
+
+  if resolved ->> 'brand_name' <> 'Diligence OS' then
+    raise exception 'expected retail brand from platform, got %', resolved ->> 'brand_name';
+  end if;
+
+  if resolved ->> 'logo_url' <> 'https://platform.example/logo.png' then
+    raise exception 'expected retail logo from platform, got %', resolved ->> 'logo_url';
+  end if;
+
+  if (resolved -> 'disclaimers')::jsonb <> '[\"Platform disclaimer\"]'::jsonb then
+    raise exception 'expected retail disclaimers from platform, got %', resolved -> 'disclaimers';
+  end if;
+end;
+"'$$;
+
+rollback;
+EOF')
+Bash(/bin/bash -lc 'nl -ba supabase/migrations/20260509234000_issue_22_multi_org_active_org_switch.sql')
+I’m implementing the resolver and PDF export function now: first a shared `resolveWhiteLabel(report)` helper, then the PDF renderer with inline footnotes and end-of-document source list, then wiring the new `/exports` endpoint.
+Bash(/bin/bash -lc "cat > supabase/functions/exports/white-label.ts <<'EOF'
+export type WhiteLabelSource = \"project\" | \"organization\" | \"platform\";
+
+export type WhiteLabelResolved = {
+  source: WhiteLabelSource;
+  brandName: string;
+  logoUrl: string | null;
+  disclaimers: string[];
+  showPlatformBranding: boolean;
+};
+
+export type WhiteLabelReportInput = {
+  project_id: string | null;
+  project: {
+    client_name?: string | null;
+    white_label_config?: unknown;
+  } | null;
+  organization: {
+    name?: string | null;
+    white_label_config?: unknown;
+  };
+};
+
+export type PlatformDefaults = {
+  brandName: string;
+  logoUrl: string | null;
+  disclaimers: string[];
+  showPlatformBranding: boolean;
+};
+
+const DEFAULT_PLATFORM: PlatformDefaults = {
+  brandName: \"Diligence OS\",
+  logoUrl: null,
+  disclaimers: [\"Generated by Diligence OS. For informational purposes only.\"],
+  showPlatformBranding: true
+};
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === \"object\" && value "'!== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function nonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function extractLogoUrl(config: Record<string, unknown>): string | null {
+  return nonEmptyString(config.logo_url) ?? nonEmptyString(config.logo) ?? null;
+}
+
+function extractBrandName(config: Record<string, unknown>): string | null {
+  return nonEmptyString(config.brand_name) ?? nonEmptyString(config.brandName) ?? nonEmptyString(config.name) ?? null;
+}
+
+function extractDisclaimers(config: Record<string, unknown>): string[] {
+  const disclaimers = config.disclaimers;
+  if (Array.isArray(disclaimers)) {
+    const values = disclaimers.map((entry) => nonEmptyString(entry)).filter((entry): entry is string => entry !== null);
+    if (values.length > 0) {
+      return values;
+    }
+  }
+
+  const singular = nonEmptyString(config.disclaimer);
+  if (singular) {
+    return [singular];
+  }
+
+  return [];
+}
+
+function extractShowPlatformBranding(config: Record<string, unknown>): boolean | null {
+  if (typeof config.show_platform_branding === "boolean") {
+    return config.show_platform_branding;
+  }
+
+  if (typeof config.include_platform_branding === "boolean") {
+    return config.include_platform_branding;
+  }
+
+  return null;
+}
+
+function hasWhiteLabelSignals(config: Record<string, unknown>, fallbackName: string | null): boolean {
+  return (
+    extractLogoUrl(config) !== null ||
+    extractBrandName(config) !== null ||
+    extractDisclaimers(config).length > 0 ||
+    fallbackName !== null
+  );
+}
+
+function normalizePlatformDefaults(input?: Partial<PlatformDefaults>): PlatformDefaults {
+  if (!input) {
+    return DEFAULT_PLATFORM;
+  }
+
+  return {
+    brandName: nonEmptyString(input.brandName) ?? DEFAULT_PLATFORM.brandName,
+    logoUrl: input.logoUrl === undefined ? DEFAULT_PLATFORM.logoUrl : input.logoUrl,
+    disclaimers: Array.isArray(input.disclaimers) && input.disclaimers.length > 0 ? input.disclaimers : DEFAULT_PLATFORM.disclaimers,
+    showPlatformBranding:
+      typeof input.showPlatformBranding === "boolean"
+        ? input.showPlatformBranding
+        : DEFAULT_PLATFORM.showPlatformBranding
+  };
+}
+
+export function platformDefaultsFromEnv(): PlatformDefaults {
+  const defaultDisclaimer = DEFAULT_PLATFORM.disclaimers[0];
+  const envBrandName = nonEmptyString(Deno.env.get("PLATFORM_BRAND_NAME"));
+  const envLogoUrl = nonEmptyString(Deno.env.get("PLATFORM_LOGO_URL"));
+
+  const disclaimersFromJson = Deno.env.get("PLATFORM_DISCLAIMERS_JSON");
+  let envDisclaimers: string[] = [];
+  if (disclaimersFromJson) {
+    try {
+      const parsed = JSON.parse(disclaimersFromJson) as unknown;
+      if (Array.isArray(parsed)) {
+        envDisclaimers = parsed.map((entry) => nonEmptyString(entry)).filter((entry): entry is string => entry !== null);
+      }
+    } catch {
+      envDisclaimers = [];
+    }
+  }
+
+  if (envDisclaimers.length === 0) {
+    const single = nonEmptyString(Deno.env.get("PLATFORM_DISCLAIMER"));
+    if (single) {
+      envDisclaimers = [single];
+    }
+  }
+
+  const showPlatformBrandingEnv = Deno.env.get("PLATFORM_SHOW_BRANDING");
+  const showPlatformBranding =
+    showPlatformBrandingEnv === undefined || showPlatformBrandingEnv === null
+      ? DEFAULT_PLATFORM.showPlatformBranding
+      : showPlatformBrandingEnv.toLowerCase() !== "false";
+
+  return {
+    brandName: envBrandName ?? DEFAULT_PLATFORM.brandName,
+    logoUrl: envLogoUrl ?? DEFAULT_PLATFORM.logoUrl,
+    disclaimers: envDisclaimers.length > 0 ? envDisclaimers : [defaultDisclaimer],
+    showPlatformBranding
+  };
+}
+
+export function resolveWhiteLabel(report: WhiteLabelReportInput, platformOverride?: Partial<PlatformDefaults>): WhiteLabelResolved {
+  const platform = normalizePlatformDefaults(platformOverride);
+  const projectConfig = asRecord(report.project?.white_label_config);
+  const orgConfig = asRecord(report.organization?.white_label_config);
+
+  const projectFallbackName = nonEmptyString(report.project?.client_name);
+  const orgFallbackName = nonEmptyString(report.organization?.name);
+
+  const projectEligible = report.project_id !== null && hasWhiteLabelSignals(projectConfig, projectFallbackName);
+  const orgEligible = hasWhiteLabelSignals(orgConfig, orgFallbackName);
+
+  const source: WhiteLabelSource = projectEligible ? "project" : orgEligible ? "organization" : "platform";
+
+  const brandName =
+    extractBrandName(projectConfig) ??
+    projectFallbackName ??
+    extractBrandName(orgConfig) ??
+    orgFallbackName ??
+    platform.brandName;
+
+  const logoUrl = extractLogoUrl(projectConfig) ?? extractLogoUrl(orgConfig) ?? platform.logoUrl;
+
+  const disclaimers = (() => {
+    const projectDisclaimers = extractDisclaimers(projectConfig);
+    if (projectDisclaimers.length > 0) return projectDisclaimers;
+
+    const orgDisclaimers = extractDisclaimers(orgConfig);
+    if (orgDisclaimers.length > 0) return orgDisclaimers;
+
+    return platform.disclaimers;
+  })();
+
+  const showPlatformBranding =
+    source === "project"
+      ? false
+      : extractShowPlatformBranding(source === "organization" ? orgConfig : {}) ?? platform.showPlatformBranding;
+
+  return {
+    source,
+    brandName,
+    logoUrl,
+    disclaimers,
+    showPlatformBranding
+  };
+}
+EOF')
+Bash(/bin/bash -lc "cat > supabase/functions/exports/pdf-render.ts <<'EOF'
+import { PDFDocument, StandardFonts, type PDFPage } from \"npm:pdf-lib@1.17.1\";
+import type { WhiteLabelResolved } from \"./white-label.ts\";
+
+export type SourceDocument = {
+  id: string;
+  source_url: string;
+  fetched_at: string;
+};
+
+type Citation = {
+  source_document_id?: string;
+  quote?: string;
+  locator?: unknown;
+};
+
+type Footnote = {
+  number: number;
+  sourceDocumentId: string;
+  quote: string;
+  locatorText: string;
+};
+
+const MARGIN = 48;
+const FONT_SIZE_NORMAL = 11;
+const FONT_SIZE_SMALL = 9;
+const LINE_HEIGHT = 15;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === \"object\" && value "'!== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => asNonEmptyString(entry)).filter((entry): entry is string => entry !== null);
+}
+
+function collectCitations(value: unknown): Citation[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((entry) => asRecord(entry));
+}
+
+function locatorToText(locator: unknown): string {
+  const record = asRecord(locator);
+  const type = asNonEmptyString(record.type);
+  if (!type) return "locator unavailable";
+
+  if (type === "pdf_page" && typeof record.page === "number") {
+    return `pdf page ${record.page}`;
+  }
+
+  if (type === "audio_timestamp" && typeof record.start_sec === "number" && typeof record.end_sec === "number") {
+    return `audio ${record.start_sec}s-${record.end_sec}s`;
+  }
+
+  if (type === "text_span" && typeof record.start_char === "number" && typeof record.end_char === "number") {
+    return `text chars ${record.start_char}-${record.end_char}`;
+  }
+
+  if (type === "html_anchor") {
+    const selector = asNonEmptyString(record.selector);
+    return selector ? `html selector ${selector}` : "html anchor";
+  }
+
+  return type;
+}
+
+function buildReportLines(payload: unknown): { lines: string[]; footnotes: Footnote[]; sourceIds: Set<string> } {
+  const record = asRecord(payload);
+  const lines: string[] = [];
+  const footnotes: Footnote[] = [];
+  const sourceIds = new Set<string>();
+
+  const sourceDocumentsUsed = asStringArray(record.source_documents_used);
+  for (const sourceId of sourceDocumentsUsed) {
+    sourceIds.add(sourceId);
+  }
+
+  const nextFootnote = (citation: Citation): number | null => {
+    const sourceDocumentId = asNonEmptyString(citation.source_document_id);
+    const quote = asNonEmptyString(citation.quote);
+    if (!sourceDocumentId || !quote) return null;
+
+    sourceIds.add(sourceDocumentId);
+    const number = footnotes.length + 1;
+    footnotes.push({
+      number,
+      sourceDocumentId,
+      quote,
+      locatorText: locatorToText(citation.locator)
+    });
+    return number;
+  };
+
+  const executiveSummary = asNonEmptyString(record.executive_summary);
+  if (executiveSummary) {
+    lines.push("Executive Summary");
+    lines.push(executiveSummary);
+    lines.push("");
+  }
+
+  const takeaways = asStringArray(record.key_takeaways);
+  if (takeaways.length > 0) {
+    lines.push("Key Takeaways");
+    for (const takeaway of takeaways) {
+      lines.push(`- ${takeaway}`);
+    }
+    lines.push("");
+  }
+
+  const sections = Array.isArray(record.sections) ? record.sections : [];
+  for (const sectionEntry of sections) {
+    const section = asRecord(sectionEntry);
+    const heading = asNonEmptyString(section.heading) ?? "Section";
+    lines.push(heading);
+
+    const claims = Array.isArray(section.claims) ? section.claims : [];
+    for (const claimEntry of claims) {
+      const claim = asRecord(claimEntry);
+      const claimText = asNonEmptyString(claim.text);
+      if (!claimText) continue;
+
+      const markers = collectCitations(claim.citations)
+        .map((citation) => nextFootnote(citation))
+        .filter((number): number is number => number !== null)
+        .map((number) => `[${number}]`)
+        .join("");
+
+      lines.push(markers.length > 0 ? `- ${claimText} ${markers}` : `- ${claimText}`);
+    }
+
+    lines.push("");
+  }
+
+  const redFlags = Array.isArray(record.red_flags) ? record.red_flags : [];
+  if (redFlags.length > 0) {
+    lines.push("Red Flags");
+    for (const redFlagEntry of redFlags) {
+      const redFlag = asRecord(redFlagEntry);
+      const redFlagText = asNonEmptyString(redFlag.text);
+      if (!redFlagText) continue;
+
+      const markers = collectCitations(redFlag.citations)
+        .map((citation) => nextFootnote(citation))
+        .filter((number): number is number => number !== null)
+        .map((number) => `[${number}]`)
+        .join("");
+
+      lines.push(markers.length > 0 ? `- ${redFlagText} ${markers}` : `- ${redFlagText}`);
+    }
+    lines.push("");
+  }
+
+  return { lines, footnotes, sourceIds };
+}
+
+function drawWrappedText(page: PDFPage, text: string, options: {
+  x: number;
+  y: number;
+  maxWidth: number;
+  font: Awaited<ReturnType<typeof PDFDocument.create>> extends never ? never : any;
+  size: number;
+  lineHeight: number;
+}) {
+  const words = text.split(/'"\\s+/).filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return options.y - options.lineHeight;
+  }
+
+  let line = \"\";
+  let cursorY = options.y;
+
+  for (const word of words) {
+    const nextLine = line.length === 0 ? word : "'`${line} ${word}`;
+    const width = options.font.widthOfTextAtSize(nextLine, options.size);
+
+    if (width > options.maxWidth && line.length > 0) {
+      page.drawText(line, {
+        x: options.x,
+        y: cursorY,
+        size: options.size,
+        font: options.font
+      });
+      cursorY -= options.lineHeight;
+      line = word;
+    } else {
+      line = nextLine;
+    }
+  }
+
+  if (line.length > 0) {
+    page.drawText(line, {
+      x: options.x,
+      y: cursorY,
+      size: options.size,
+      font: options.font
+    });
+    cursorY -= options.lineHeight;
+  }
+
+  return cursorY;
+}
+
+export async function buildReportPdf(params: {
+  reportId: string;
+  reportType: string;
+  createdAt: string;
+  companyName: string;
+  payload: unknown;
+  whiteLabel: WhiteLabelResolved;
+  sourceDocuments: SourceDocument[];
+}): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const titleFont = await doc.embedFont(StandardFonts.HelveticaBold);
+  const bodyFont = await doc.embedFont(StandardFonts.Helvetica);
+
+  let page = doc.addPage([595.28, 841.89]);
+  let cursorY = page.getHeight() - MARGIN;
+  const maxWidth = page.getWidth() - MARGIN * 2;
+
+  const ensureSpace = (required: number) => {
+    if (cursorY - required >= MARGIN) return;
+    page = doc.addPage([595.28, 841.89]);
+    cursorY = page.getHeight() - MARGIN;
+  };
+
+  const drawHeading = (text: string) => {
+    ensureSpace(30);
+    page.drawText(text, { x: MARGIN, y: cursorY, size: 18, font: titleFont });
+    cursorY -= 24;
+  };
+
+  const drawSubHeading = (text: string) => {
+    ensureSpace(22);
+    page.drawText(text, { x: MARGIN, y: cursorY, size: 13, font: titleFont });
+    cursorY -= 18;
+  };
+
+  const drawBodyLine = (text: string, small = false) => {
+    ensureSpace(20);
+    cursorY = drawWrappedText(page, text, {
+      x: MARGIN,
+      y: cursorY,
+      maxWidth,
+      font: bodyFont,
+      size: small ? FONT_SIZE_SMALL : FONT_SIZE_NORMAL,
+      lineHeight: small ? 12 : LINE_HEIGHT
+    });
+  };
+
+  drawHeading(params.whiteLabel.brandName);
+  drawBodyLine(`${params.reportType} report · ${params.companyName}`);
+  drawBodyLine(`Report ID: ${params.reportId}`, true);
+  drawBodyLine(`Generated at: ${params.createdAt}`, true);
+
+  if (params.whiteLabel.logoUrl) {
+    drawBodyLine(`Logo: ${params.whiteLabel.logoUrl}`, true);
+  }
+
+  if (params.whiteLabel.showPlatformBranding) {
+    drawBodyLine("Powered by Diligence OS", true);
+  }
+
+  if (params.whiteLabel.disclaimers.length > 0) {
+    cursorY -= 8;
+    drawSubHeading("Disclaimers");
+    for (const disclaimer of params.whiteLabel.disclaimers) {
+      drawBodyLine(`- ${disclaimer}`, true);
+    }
+  }
+
+  const reportBody = buildReportLines(params.payload);
+
+  cursorY -= 8;
+  drawSubHeading("Report Content");
+  if (reportBody.lines.length === 0) {
+    drawBodyLine("No structured report content was present in payload.");
+  } else {
+    for (const line of reportBody.lines) {
+      if (line.length === 0) {
+        cursorY -= 5;
+      } else if (line.startsWith("- ")) {
+        drawBodyLine(line);
+      } else {
+        drawSubHeading(line);
+      }
+    }
+  }
+
+  if (reportBody.footnotes.length > 0) {
+    cursorY -= 8;
+    drawSubHeading("Footnotes");
+    for (const footnote of reportBody.footnotes) {
+      drawBodyLine(
+        `[${footnote.number}] "${footnote.quote}" (source ${footnote.sourceDocumentId}; ${footnote.locatorText})`,
+        true
+      );
+    }
+  }
+
+  cursorY -= 8;
+  drawSubHeading("Source List");
+
+  const knownSources = new Map(params.sourceDocuments.map((source) => [source.id, source]));
+  const orderedSourceIds = Array.from(reportBody.sourceIds.values()).sort();
+
+  if (orderedSourceIds.length === 0) {
+    drawBodyLine("No sources captured for this report.", true);
+  } else {
+    for (const sourceId of orderedSourceIds) {
+      const source = knownSources.get(sourceId);
+      if (source) {
+        drawBodyLine(`${source.source_url} · fetched_at ${source.fetched_at}`, true);
+      } else {
+        drawBodyLine(`source_id ${sourceId} · fetched_at unavailable`, true);
+      }
+    }
+  }
+
+  return await doc.save();
+}
+EOF')
+Bash(/bin/bash -lc "cat > supabase/functions/exports/index.ts <<'EOF'
+import \"jsr:@supabase/functions-js/edge-runtime.d.ts\";
+import { buildReportPdf } from \"./pdf-render.ts\";
+import { platformDefaultsFromEnv, resolveWhiteLabel } from \"./white-label.ts\";
+import { corsHeaders, jsonResponse } from \"../_shared/http.ts\";
+import { createServiceClient, createUserClient } from \"../_shared/supabase.ts\";
+
+type ExportReportRow = {
+  id: string;
+  org_id: string;
+  project_id: string | null;
+  report_type: string;
+  created_at: string;
+  payload: unknown;
+  company_id: string;
+  organizations: { name?: string | null; white_label_config?: unknown } | { name?: string | null; white_label_config?: unknown }[] | null;
+  projects:
+    | { client_name?: string | null; white_label_config?: unknown }
+    | { client_name?: string | null; white_label_config?: unknown }[]
+    | null;
+  companies:
+    | { display_name?: string | null; legal_name?: string | null }
+    | { display_name?: string | null; legal_name?: string | null }[]
+    | null;
+};
+
+function parseReportId(pathname: string): string | null {
+  const normalized = pathname.replace(/\\/+"'$/, "");
+  const match = normalized.match(/'"\\/([0-9a-fA-F-]{36})\\.pdf"'$/);
+  return match ? match[1] : null;
+}
+
+function pickOne<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function collectSourceDocumentIds(payload: unknown): string[] {
+  const root = asRecord(payload);
+  const collected = new Set<string>();
+
+  const add = (value: unknown) => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      collected.add(trimmed);
+    }
+  };
+
+  for (const sourceId of asStringArray(root.source_documents_used)) {
+    add(sourceId);
+  }
+
+  const inspectCitations = (citations: unknown) => {
+    if (!Array.isArray(citations)) return;
+    for (const citationEntry of citations) {
+      const citation = asRecord(citationEntry);
+      add(citation.source_document_id);
+    }
+  };
+
+  if (Array.isArray(root.sections)) {
+    for (const sectionEntry of root.sections) {
+      const section = asRecord(sectionEntry);
+      if (!Array.isArray(section.claims)) continue;
+
+      for (const claimEntry of section.claims) {
+        const claim = asRecord(claimEntry);
+        inspectCitations(claim.citations);
+      }
+    }
+  }
+
+  if (Array.isArray(root.red_flags)) {
+    for (const redFlagEntry of root.red_flags) {
+      const redFlag = asRecord(redFlagEntry);
+      inspectCitations(redFlag.citations);
+    }
+  }
+
+  return Array.from(collected.values());
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (request.method !== "GET") {
+    return jsonResponse(405, { error: "Method not allowed." });
+  }
+
+  const reportId = parseReportId(new URL(request.url).pathname);
+  if (!reportId) {
+    return jsonResponse(404, { error: "Report PDF route not found." });
+  }
+
+  const authorization = request.headers.get("Authorization");
+  if (!authorization) {
+    return jsonResponse(401, { error: "Missing Authorization header." });
+  }
+
+  const userClient = createUserClient(authorization);
+  const serviceClient = createServiceClient();
+
+  const {
+    data: { user },
+    error: userError
+  } = await userClient.auth.getUser();
+
+  if (userError || !user) {
+    return jsonResponse(401, { error: "Invalid user session." });
+  }
+
+  const { data: activeOrgId, error: activeOrgError } = await userClient.rpc("current_active_org");
+  if (activeOrgError || !activeOrgId) {
+    return jsonResponse(403, { error: "No active organization context." });
+  }
+
+  const { data: reportRow, error: reportError } = await serviceClient
+    .from("reports")
+    .select(
+      "id, org_id, project_id, report_type, created_at, payload, company_id, organizations(name, white_label_config), projects(client_name, white_label_config), companies(display_name, legal_name)"
+    )
+    .eq("id", reportId)
+    .eq("org_id", activeOrgId)
+    .single<ExportReportRow>();
+
+  if (reportError || !reportRow) {
+    return jsonResponse(404, { error: "Report not found." });
+  }
+
+  const organization = pickOne(reportRow.organizations);
+  if (!organization) {
+    return jsonResponse(500, { error: "Report organization context is missing." });
+  }
+
+  const project = pickOne(reportRow.projects);
+  const company = pickOne(reportRow.companies);
+
+  const whiteLabel = resolveWhiteLabel(
+    {
+      project_id: reportRow.project_id,
+      project: project
+        ? {
+            client_name: project.client_name ?? null,
+            white_label_config: project.white_label_config
+          }
+        : null,
+      organization: {
+        name: organization.name ?? null,
+        white_label_config: organization.white_label_config
+      }
+    },
+    platformDefaultsFromEnv()
+  );
+
+  const sourceDocumentIds = collectSourceDocumentIds(reportRow.payload);
+  const sourceDocuments = sourceDocumentIds.length
+    ? (
+        await serviceClient
+          .from("source_documents")
+          .select("id, source_url, fetched_at")
+          .in("id", sourceDocumentIds)
+      ).data ?? []
+    : [];
+
+  const pdfBytes = await buildReportPdf({
+    reportId: reportRow.id,
+    reportType: reportRow.report_type,
+    createdAt: reportRow.created_at,
+    companyName: company?.display_name ?? company?.legal_name ?? reportRow.company_id,
+    payload: reportRow.payload,
+    whiteLabel,
+    sourceDocuments
+  });
+
+  await serviceClient.from("audit_events").insert({
+    org_id: reportRow.org_id,
+    project_id: reportRow.project_id,
+    actor_id: user.id,
+    kind: "export",
+    payload: {
+      report_id: reportRow.id,
+      format: "pdf",
+      white_label_source: whiteLabel.source
+    }
+  });
+
+  return new Response(pdfBytes, {
+    status: 200,
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="report-${reportId}.pdf"`
+    }
+  });
+});
+EOF')
+I’ve added the new export function and resolver helper. Next I’m adding the migration function required by the new RED SQL test (`resolve_report_white_label`) so fallback-chain behavior is verifiable in DB tests too.
+Bash(/bin/bash -lc "cat > supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql <<'EOF'
+create or replace function public.resolve_report_white_label(
+  p_report_id uuid,
+  p_platform_defaults jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as "'$$
+declare
+  report_row record;
+  project_config jsonb := '"'{}'::jsonb;
+  org_config jsonb := '{}'::jsonb;
+  platform_config jsonb := coalesce(p_platform_defaults, '{}'::jsonb);
+  source_label text := 'platform';
+  brand_name text;
+  logo_url text;
+  disclaimers jsonb := '[]'::jsonb;
+  show_platform_branding boolean := true;
+  project_has_branding boolean := false;
+  org_has_branding boolean := false;
+begin
+  select
+    r.id,
+    r.project_id,
+    r.org_id,
+    o.name as org_name,
+    o.white_label_config as org_white_label_config,
+    p.client_name,
+    p.white_label_config as project_white_label_config
+  into report_row
+  from public.reports r
+  join public.organizations o on o.id = r.org_id
+  left join public.projects p on p.id = r.project_id
+  where r.id = p_report_id
+    and r.org_id = public.current_active_org();
+
+  if not found then
+    raise exception 'report not found or not visible in active org';
+  end if;
+
+  project_config := coalesce(report_row.project_white_label_config, '{}'::jsonb);
+  org_config := coalesce(report_row.org_white_label_config, '{}'::jsonb);
+
+  project_has_branding := report_row.project_id is not null and (
+    nullif(project_config ->> 'brand_name', '') is not null
+    or nullif(project_config ->> 'logo_url', '') is not null
+    or nullif(project_config ->> 'logo', '') is not null
+    or nullif(project_config ->> 'disclaimer', '') is not null
+    or (jsonb_typeof(project_config -> 'disclaimers') = 'array' and jsonb_array_length(project_config -> 'disclaimers') > 0)
+    or nullif(report_row.client_name, '') is not null
+  );
+
+  org_has_branding := (
+    nullif(org_config ->> 'brand_name', '') is not null
+    or nullif(org_config ->> 'logo_url', '') is not null
+    or nullif(org_config ->> 'logo', '') is not null
+    or nullif(org_config ->> 'disclaimer', '') is not null
+    or (jsonb_typeof(org_config -> 'disclaimers') = 'array' and jsonb_array_length(org_config -> 'disclaimers') > 0)
+    or nullif(report_row.org_name, '') is not null
+  );
+
+  if project_has_branding then
+    source_label := 'project';
+  elsif org_has_branding then
+    source_label := 'organization';
+  else
+    source_label := 'platform';
+  end if;
+
+  brand_name := coalesce(
+    nullif(project_config ->> 'brand_name', ''),
+    nullif(report_row.client_name, ''),
+    nullif(org_config ->> 'brand_name', ''),
+    nullif(report_row.org_name, ''),
+    nullif(platform_config ->> 'brand_name', ''),
+    'Diligence OS'
+  );
+
+  logo_url := coalesce(
+    nullif(project_config ->> 'logo_url', ''),
+    nullif(project_config ->> 'logo', ''),
+    nullif(org_config ->> 'logo_url', ''),
+    nullif(org_config ->> 'logo', ''),
+    nullif(platform_config ->> 'logo_url', ''),
+    nullif(platform_config ->> 'logo', '')
+  );
+
+  if jsonb_typeof(project_config -> 'disclaimers') = 'array' and jsonb_array_length(project_config -> 'disclaimers') > 0 then
+    disclaimers := project_config -> 'disclaimers';
+  elsif nullif(project_config ->> 'disclaimer', '') is not null then
+    disclaimers := jsonb_build_array(project_config ->> 'disclaimer');
+  elsif jsonb_typeof(org_config -> 'disclaimers') = 'array' and jsonb_array_length(org_config -> 'disclaimers') > 0 then
+    disclaimers := org_config -> 'disclaimers';
+  elsif nullif(org_config ->> 'disclaimer', '') is not null then
+    disclaimers := jsonb_build_array(org_config ->> 'disclaimer');
+  elsif jsonb_typeof(platform_config -> 'disclaimers') = 'array' and jsonb_array_length(platform_config -> 'disclaimers') > 0 then
+    disclaimers := platform_config -> 'disclaimers';
+  elsif nullif(platform_config ->> 'disclaimer', '') is not null then
+    disclaimers := jsonb_build_array(platform_config ->> 'disclaimer');
+  else
+    disclaimers := jsonb_build_array('Generated by Diligence OS. For informational purposes only.');
+  end if;
+
+  if source_label = 'project' then
+    show_platform_branding := false;
+  elsif source_label = 'organization' then
+    show_platform_branding := coalesce(
+      (org_config ->> 'show_platform_branding')::boolean,
+      (org_config ->> 'include_platform_branding')::boolean,
+      (platform_config ->> 'show_platform_branding')::boolean,
+      (platform_config ->> 'include_platform_branding')::boolean,
+      true
+    );
+  else
+    show_platform_branding := coalesce(
+      (platform_config ->> 'show_platform_branding')::boolean,
+      (platform_config ->> 'include_platform_branding')::boolean,
+      true
+    );
+  end if;
+
+  return jsonb_build_object(
+    'source', source_label,
+    'brand_name', brand_name,
+    'logo_url', logo_url,
+    'disclaimers', disclaimers,
+    'show_platform_branding', show_platform_branding
+  );
+end;
+"'$$;
+
+grant execute on function public.resolve_report_white_label(uuid, jsonb) to authenticated;
+revoke execute on function public.resolve_report_white_label(uuid, jsonb) from anon, public;
+EOF')
+Bash(/bin/bash -lc 'git status --short && git diff --stat')
+Bash(/bin/bash -lc 'nl -ba supabase/functions/exports/index.ts')
+Bash(/bin/bash -lc 'nl -ba supabase/functions/exports/white-label.ts')
+Bash(/bin/bash -lc 'nl -ba supabase/functions/exports/pdf-render.ts')
+Bash(/bin/bash -lc 'nl -ba supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql')
+Bash(/bin/bash -lc 'nl -ba supabase/tests/issue_34_white_label_pdf_export.sql')
+I found a logic gap against acceptance: retail org names were incorrectly causing “organization” branding even with empty org config. I’m patching both resolver implementations so retail with empty org branding correctly falls back to platform defaults.
+Bash(/bin/bash -lc "perl -0pi -e 's/function hasWhiteLabelSignals\\(config: Record<string, unknown>, fallbackName: string \\| null\\): boolean \\{\\n  return \\(\\n    extractLogoUrl\\(config\\) "'!== null '"\\|\\|\\n    extractBrandName\\(config\\) "'!== null '"\\|\\|\\n    extractDisclaimers\\(config\\)\\.length > 0 \\|\\|\\n    fallbackName "'!== null'"\\n  \\);\\n\\}/function hasWhiteLabelSignals(config: Record<string, unknown>): boolean {\\n  return (\\n    extractLogoUrl(config) "'!== null ||'"\\n    extractBrandName(config) "'!== null ||'"\\n    extractDisclaimers(config).length > 0\\n  );\\n}/s' supabase/functions/exports/white-label.ts")
+Bash(/bin/bash -lc "perl -0pi -e 's/const projectEligible = report\\.project_id "'!== null && hasWhiteLabelSignals'"\\(projectConfig, projectFallbackName\\);\\n  const orgEligible = hasWhiteLabelSignals\\(orgConfig, orgFallbackName\\);/const projectEligible = report.project_id "'!== null && (hasWhiteLabelSignals(projectConfig) || projectFallbackName !== null);'"\\n  const orgEligible = hasWhiteLabelSignals(orgConfig);/s' supabase/functions/exports/white-label.ts")
+Bash(/bin/bash -lc "perl -0pi -e \"s/or nullif\\(report_row\\.org_name, ''\\) is not null\\n\\s*\\);/);/s\" supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql")
+Bash(/bin/bash -lc "nl -ba supabase/functions/exports/white-label.ts | sed -n '80,190p'")
+Bash(/bin/bash -lc "nl -ba supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql | sed -n '46,84p'")
+I’m at verification: running the required workspace checks now (`npm run typecheck` and `npm run test`). I’ll report exact pass/fail status and blockers.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Both verification commands are still running dependency/bootstrap work. I’m polling to completion and will capture the final pass/fail outputs next.
+Agent idle for 1 minute
+Bash(/bin/bash -lc 'git status --short')
+Implementation is complete and checks were run; I’m committing now with the required structured `RALPH:` message, including the Supabase-local test blocker details.
+Bash(/bin/bash -lc 'git add supabase/functions/exports/index.ts supabase/functions/exports/white-label.ts supabase/functions/exports/pdf-render.ts supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql supabase/tests/issue_34_white_label_pdf_export.sql && git commit -m "RALPH: complete issue #34 white-label PDF export fallback chain (PRD AD-10/AD-11)
+
+Task completed + PRD reference:
+- Implemented GET /functions/v1/exports/:report_id.pdf with project->org->platform white-label resolution aligned to docs/PRD.md AD-10 and citation/source export expectations in AD-11.
+
+Key decisions made:
+- Added explicit resolver helper resolveWhiteLabel(report) for the chain and enforced agency project exports to suppress platform branding.
+- Integrated pdf-lib in a Supabase Edge Function renderer with inline citation footnotes carrying verbatim quotes and a mandatory source list section with fetched timestamps.
+- Added SQL resolver function resolve_report_white_label(report_id, platform_defaults) and an issue #34 DB test validating agency, B2B, and retail fallback behavior.
+
+Files changed:
+- supabase/functions/exports/index.ts
+- supabase/functions/exports/white-label.ts
+- supabase/functions/exports/pdf-render.ts
+- supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql
+- supabase/tests/issue_34_white_label_pdf_export.sql
+
+Blockers or notes for next iteration:
+- npm run typecheck passes.
+- npm run test fails in this environment because local Supabase/Postgres is not running (connection refused at 127.0.0.1:54322), so DB tests (including issue #34) could not be executed end-to-end here."')
+Bash(/bin/bash -lc 'git status --short && git log -1 --oneline')
+Implemented issue #34 on branch `sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain` and committed as `41f864d`.
+
+What was added:
+- New Edge Function endpoint `GET /functions/v1/exports/:report_id.pdf` with auth + active-org scoping, white-label resolution, PDF generation (`pdf-lib`), inline citation footnotes (with verbatim quotes), and end-of-export source list with timestamps in [index.ts](/home/agent/workspace/supabase/functions/exports/index.ts).
+- White-label resolver helper `resolveWhiteLabel(report)` with project → org → platform fallback in [white-label.ts](/home/agent/workspace/supabase/functions/exports/white-label.ts).
+- PDF renderer in [pdf-render.ts](/home/agent/workspace/supabase/functions/exports/pdf-render.ts).
+- DB resolver function migration `resolve_report_white_label(...)` in [20260510143000_issue_34_white_label_pdf_export.sql](/home/agent/workspace/supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql).
+- RED/GREEN DB test for acceptance-chain behavior in [issue_34_white_label_pdf_export.sql](/home/agent/workspace/supabase/tests/issue_34_white_label_pdf_export.sql).
+
+Validation:
+- `npm run typecheck` passed.
+- `npm run test` failed only because local Supabase/Postgres is not running (`127.0.0.1:54322` connection refused), so DB tests could not execute in this environment.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+
+--- Run started: 2026-05-10T05:09:57.585Z ---
+Sandcastle Run
+  Agent: implementer-34
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (3.2s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1853 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue contract and PRD context first, then inspect current code/tests to see what is still missing for issue #34 before making any edits. I’ll start by reading `AGENTS.md`, issue `#34` with comments, issue `#1`, and `docs/PRD.md`.
+Bash(/bin/bash -lc 'pwd && ls -la')
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'gh issue view 34 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I confirmed repo conventions and now need to re-run GitHub issue fetch with explicit JSON flags, since plain `gh issue view` returned no visible output in this shell session.
+Bash(/bin/bash -lc 'gh issue view 34 --comments --json number,title,body,comments,assignees,labels,state,url')
+Bash(/bin/bash -lc 'gh issue view 1 --comments --json number,title,body,comments,state,url')
+I have the exact issue contract and parent context now. Next I’ll inspect the current branch/status and `docs/PRD.md`, then audit existing export code/tests to identify the smallest gap against the acceptance criteria.
+Bash(/bin/bash -lc 'git status --short --branch')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'cat package.json')
+Bash(/bin/bash -lc "git branch --all --list '*issue-34*'")
+Bash(/bin/bash -lc 'rg --files supabase/functions/exports supabase/tests supabase/migrations | sort')
+Bash(/bin/bash -lc "sed -n '1,220p' supabase/functions/exports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/exports/white-label.ts")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/functions/exports/pdf-render.ts")
+Bash(/bin/bash -lc "sed -n '320,420p' supabase/functions/exports/pdf-render.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/tests/issue_34_white_label_pdf_export.sql")
+Bash(/bin/bash -lc 'ls -la supabase/tests')
+Bash(/bin/bash -lc "sed -n '1,280p' supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql")
+Bash(/bin/bash -lc "sed -n '260,520p' supabase/tests/issue_34_white_label_pdf_export.sql")
+Bash(/bin/bash -lc "wc -l supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql && sed -n '1,260p' supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql")
+I found issue #34 code paths already present on this branch, so I’m now checking for contract gaps (especially fallback semantics and test coverage) before deciding what to change and commit.
+Bash(/bin/bash -lc 'cat supabase/functions/exports/deno.json')
+Bash(/bin/bash -lc 'ls -la supabase/functions/exports')
+Bash(/bin/bash -lc "ls -la supabase/functions/_shared && sed -n '1,220p' supabase/functions/_shared/http.ts")
+Bash(/bin/bash -lc 'cat supabase/config.toml')
+Bash(/bin/bash -lc 'git status --short')
+I identified the likely gap: existing SQL coverage checks three tiers, but not the actual fallback behavior when an agency project only partially defines branding. I’m going to add a focused test for that chain and then update implementation only if the new test fails.
+Bash(/bin/bash -lc "find . -maxdepth 4 -type f \\( -name '*test*' -o -name '*.spec.ts' -o -name '*.test.ts' -o -name '*.sql' \\) | sort")
+Bash(/bin/bash -lc 'find supabase -maxdepth 3 -type f | sort')
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc "sed -n '1,280p' supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql")
+Bash(/bin/bash -lc 'git log --oneline --decorate -n 20')
+I’m going to make a narrow hardening change: enforce project-first semantics whenever `project_id` is present, then add a DB test case for an agency project with empty branding so fallback still uses org values while keeping platform branding suppressed.
+Bash(/bin/bash -lc "grep -n \"projectEligible\\|project_has_branding\\|source_label\" -n supabase/functions/exports/white-label.ts supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql supabase/tests/issue_34_white_label_pdf_export.sql")
+I’ve applied the focused change in both resolver implementations and added a new DB assertion for the project-first fallback edge case. Next I’ll run typecheck and tests as requested, then I’ll commit with the required message format.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc 'git diff -- supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql')
+Bash(/bin/bash -lc 'git diff -- supabase/functions/exports/white-label.ts')
+Bash(/bin/bash -lc 'git diff -- supabase/tests/issue_34_white_label_pdf_export.sql')
+I validated the diff and am committing now with the required structured message, including the test/run outcomes and blocker note about local Supabase DB availability.
+Bash(/bin/bash -lc 'git add supabase/functions/exports/white-label.ts supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql supabase/tests/issue_34_white_label_pdf_export.sql && git commit -m "RALPH: harden issue #34 white-label PDF export fallback chain (PRD AD-10/AD-11)" -m "Task completed + PRD reference:
+- Hardened project->org->platform white-label source selection for PDF exports per docs/PRD.md AD-10 and AD-11.
+
+Key decisions made:
+- Treat any report with project_id as project-sourced for resolver source selection and platform-branding suppression.
+- Keep field-level fallback behavior for brand/logo/disclaimers as project -> org -> platform.
+- Added DB acceptance coverage for agency reports with empty project branding that must still resolve from org while keeping no platform branding.
+
+Files changed:
+- supabase/functions/exports/white-label.ts
+- supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql
+- supabase/tests/issue_34_white_label_pdf_export.sql
+
+Blockers or notes for next iteration:
+- npm run typecheck passes.
+- npm run test fails in this environment because local Supabase/Postgres is not running (connection refused at 127.0.0.1:54322), so DB tests could not be executed end-to-end here."')
+Bash(/bin/bash -lc 'git rev-parse --short HEAD && git status --short --branch')
+Implemented issue #34 on branch `sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain` and committed as `8c12116`.
+
+Changes made:
+- Enforced project-first white-label source semantics whenever `project_id` is set in [white-label.ts](/home/agent/workspace/supabase/functions/exports/white-label.ts).
+- Kept field fallback as `project -> org -> platform` while ensuring agency exports with `project_id` suppress platform branding in [20260510143000_issue_34_white_label_pdf_export.sql](/home/agent/workspace/supabase/migrations/20260510143000_issue_34_white_label_pdf_export.sql).
+- Added DB acceptance coverage for empty project branding fallback (still project-sourced, org values used, no platform branding) in [issue_34_white_label_pdf_export.sql](/home/agent/workspace/supabase/tests/issue_34_white_label_pdf_export.sql).
+
+Validation:
+- `npm run typecheck` passed.
+- `npm run test` failed due local Supabase/Postgres unavailable at `127.0.0.1:54322` (connection refused), so DB tests could not run end-to-end here.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

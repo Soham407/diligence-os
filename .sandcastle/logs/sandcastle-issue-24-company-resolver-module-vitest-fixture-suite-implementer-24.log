@@ -1,0 +1,803 @@
+
+--- Run started: 2026-05-10T05:28:53.104Z ---
+Sandcastle Run
+  Agent: implementer-24
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-24-company-resolver-module-vitest-fixture-suite
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (3.4s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1399 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull issue `#24` and parent `#1`, then read the repo conventions (`AGENTS.md`) and `docs/PRD.md` so I can implement only the acceptance criteria on the requested branch.
+Bash(/bin/bash -lc 'pwd && ls -la && git status --short --branch')
+Bash(/bin/bash -lc 'gh issue view 24 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+The branch is already correct. I didn’t get the issue text from the first `gh` calls, so I’m re-running them with stderr capture to ensure we have the authoritative contract before touching code.
+Bash(/bin/bash -lc "cat AGENTS.md && echo '---' && cat docs/PRD.md")
+Bash(/bin/bash -lc 'gh issue view 24 --comments 2>&1')
+Bash(/bin/bash -lc 'gh issue view 1 --comments 2>&1')
+I have the PRD and conventions loaded. Next I’m troubleshooting `gh issue view` output so we can read issue `#24` contract exactly before implementation.
+Bash(/bin/bash -lc 'gh repo view --json nameWithOwner,url 2>&1')
+Bash(/bin/bash -lc 'git remote -v && gh auth status 2>&1')
+Bash(/bin/bash -lc 'gh issue view 24 --json number,title,body,comments,labels,url 2>&1')
+Bash(/bin/bash -lc 'gh issue view 1 --json number,title,body,comments,labels,url 2>&1')
+I now have issue `#24` contract and parent context. Next I’m scanning the codebase for existing company/resolve modules, edge function patterns, and Vitest fixture conventions so implementation stays aligned and scoped.
+Bash(/bin/bash -lc 'rg --files')
+Bash(/bin/bash -lc "rg -n \"companies/resolve|Company Resolver|resolve\\(|source_doc_set_hash|vitest|__fixtures__|reports\" web supabase docs -g '"'!**/node_modules/**'"'")
+Bash(/bin/bash -lc "cat package.json && echo '---' && rg -n \"scripts|typecheck|test\" package.json")
+`rg` isn’t installed in this environment, so I’m switching to `find`/`grep` and focusing on `supabase/functions`, `web`, and existing tests to mirror local conventions.
+Bash(/bin/bash -lc 'find supabase web docs -type f | sort')
+Bash(/bin/bash -lc 'find . -maxdepth 3 -type d | sort')
+Bash(/bin/bash -lc "grep -RIn \"companies/resolve\\|resolve_report_white_label\\|vitest\\|__fixtures__\\|exports\" supabase web docs package.json --exclude-dir=node_modules")
+Bash(/bin/bash -lc "cat supabase/package.json && echo '---' && cat web/package.json")
+Bash(/bin/bash -lc "find . -maxdepth 4 -type f \\( -name \"vitest.config.*\" -o -name \"*.test.ts\" -o -name \"*.spec.ts\" \\) | sort")
+Bash(/bin/bash -lc "cat supabase/tsconfig.json && echo '---' && cat web/tsconfig.json")
+I found there’s no existing Vitest setup yet, so I’ll mirror current repo patterns and add the minimal testing scaffold only for this module. I’m now reading the current reports/web flows and canonical company schema from issue `#23` migration.
+Bash(/bin/bash -lc "cat docs/agents/issue-tracker.md && echo '---' && cat docs/agents/domain.md && echo '---' && cat docs/agents/triage-labels.md")
+Bash(/bin/bash -lc 'cat supabase/migrations/20260510143000_issue_23_canonical_companies_securities_master_seed.sql')
+Bash(/bin/bash -lc 'cat supabase/tests/issue_23_canonical_companies_securities_master_seed.sql')
+Bash(/bin/bash -lc "cat web/app/page.tsx && echo '---' && cat web/app/report-panel.tsx && echo '---' && cat web/app/agency-dashboard.tsx")
+Bash(/bin/bash -lc "cat supabase/functions/_shared/http.ts && echo '---' && cat supabase/functions/_shared/supabase.ts && echo '---' && cat supabase/functions/_shared/cors.ts")
+Bash(/bin/bash -lc "cat supabase/functions/reports/index.ts && echo '---' && cat supabase/functions/projects/index.ts && echo '---' && cat supabase/functions/me/index.ts")
+Bash(/bin/bash -lc "find . -maxdepth 3 -type f \\( -name 'CONTEXT.md' -o -path './docs/adr/*' \\) | sort")
+I’ve confirmed there are no extra domain docs/ADRs beyond `docs/PRD.md`. I’m now checking the actual SQL schema in migrations to ensure the resolver and response fields match what’s currently persisted.
+Bash(/bin/bash -lc 'cat supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql')
+Bash(/bin/bash -lc 'cat supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql')
+Bash(/bin/bash -lc 'cat supabase/seed.sql')
+I confirmed the database already has `companies`/`securities` from issue `#23`. Next I’m validating Edge Function routing style (`/function-name/...`) so `/functions/v1/companies/resolve` is implemented the same way as existing path-based handlers.
+Bash(/bin/bash -lc 'cat supabase/functions/exports/index.ts')
+Bash(/bin/bash -lc 'cat .github/workflows/* 2>/dev/null')
+Bash(/bin/bash -lc 'cat tsconfig.base.json')
+I’ve identified the implementation path: add a `companies` Edge Function that handles `/resolve`, a pure resolver module with fixture-driven Vitest tests, and a small web search panel that calls `/functions/v1/companies/resolve` directly. I’m checking web Supabase env helpers now to wire authenticated fetch correctly.
+Bash(/bin/bash -lc "cat web/lib/supabase/env.ts && echo '---' && cat web/lib/supabase/browser.ts && echo '---' && cat web/lib/supabase/server.ts")
+Plan for issue `#24` (scoped to acceptance criteria only):
+
+1. Add a pure `Company Resolver` module in `supabase/functions/_shared` with `resolve(query: string)` and deterministic matching order for CIN/ISIN/NSE/BSE/name plus ambiguity handling.
+2. Add Vitest to the `supabase` workspace package and create fixture-driven tests under `__fixtures__/` + `__tests__/` covering exactly the adversarial cases in the issue.
+3. Implement a new Supabase Edge Function `companies` that handles `POST /functions/v1/companies/resolve`, loads canonical companies + securities, runs the resolver, and returns the required canonical payload shape (or `null`).
+4. Add a minimal Next.js search UI panel that calls `/functions/v1/companies/resolve` and renders canonical company + primary security.
+5. Run RED/GREEN loops for the resolver tests, then run `npm run typecheck` and `npm run test`, and commit with the required `RALPH:` message format.
+
+I’ll start by writing one failing resolver test and minimal fixture scaffolding.
+I’m writing the first RED test now: exact NSE symbol resolution from a fixture table, with no implementation file yet so the test should fail as expected.
+Bash(/bin/bash -lc 'mkdir -p supabase/functions/_shared/__tests__ supabase/functions/_shared/__fixtures__')
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts <<'EOF'
+export const resolverFixtureCompanies = [
+  {
+    id: \"11111111-1111-1111-1111-111111111111\",
+    cin: \"L12345MH2000PLC000001\",
+    legal_name: \"Alpha Holdings Limited\",
+    display_name: \"Alpha\",
+    sector: \"Financial Services\",
+    listing_status: \"listed\",
+    securities: [
+      {
+        id: \"s-1\",
+        company_id: \"11111111-1111-1111-1111-111111111111\",
+        isin: \"INEALPHA00011\",
+        security_type: \"equity\",
+        nse_symbol: \"ALPHA\",
+        bse_code: \"500001\",
+        is_primary: true
+      }
+    ]
+  }
+] as const;
+EOF")
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/__tests__/company-resolver.test.ts <<'EOF'
+import { describe, expect, it } from \"vitest\";
+import { CompanyResolver } from \"../company-resolver.ts\";
+import { resolverFixtureCompanies } from \"../__fixtures__/company-resolver.fixture.ts\";
+
+describe(\"CompanyResolver\", () => {
+  it(\"resolves exact NSE symbol\", () => {
+    const resolver = new CompanyResolver(resolverFixtureCompanies);
+    const resolved = resolver.resolve(\"ALPHA\");
+
+    expect(resolved?.id).toBe(\"11111111-1111-1111-1111-111111111111\");
+  });
+});
+EOF")
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase add -D vitest@''^2.1.8')
+Dependency install hit `pnpm`’s build-script approval gate (`esbuild`). I’m re-running install with explicit build approval so Vitest can run.
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase add -D vitest@''^2.1.8 --allow-build=esbuild')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase exec vitest run')
+Vitest execution triggered a workspace install that failed on another build-approval gate (`sharp`). I’m approving required builds (`esbuild`,`sharp`) once so test runs are stable.
+Bash(/bin/bash -lc 'corepack pnpm install --allow-build=esbuild,sharp')
+Bash(/bin/bash -lc 'corepack pnpm help approve-builds')
+Bash(/bin/bash -lc 'corepack pnpm approve-builds --all')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase exec vitest run')
+Agent idle for 1 minute
+I’m moving to GREEN now: implementing the resolver and expanding the fixture suite to all eight required cases, including ambiguity and `is_primary` handling.
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts <<'EOF'
+import type { ResolverCompany } from \"../company-resolver.ts\";
+
+export const resolverFixtureCompanies: ResolverCompany[] = [
+  {
+    id: \"11111111-1111-1111-1111-111111111111\",
+    cin: \"L12345MH2000PLC000001\",
+    legal_name: \"Alpha Holdings Limited\",
+    display_name: \"Alpha\",
+    sector: \"Financial Services\",
+    listing_status: \"listed\",
+    securities: [
+      {
+        id: \"s-alpha\",
+        company_id: \"11111111-1111-1111-1111-111111111111\",
+        isin: \"INEALPHA00011\",
+        security_type: \"equity\",
+        nse_symbol: \"ALPHA\",
+        bse_code: \"500001\",
+        is_primary: true
+      }
+    ]
+  },
+  {
+    id: \"22222222-2222-2222-2222-222222222222\",
+    cin: \"L98765MH2002PLC000222\",
+    legal_name: \"Beta Manufacturing Limited\",
+    display_name: \"Beta Manufacturing\",
+    sector: \"Industrials\",
+    listing_status: \"listed\",
+    securities: [
+      {
+        id: \"s-beta\",
+        company_id: \"22222222-2222-2222-2222-222222222222\",
+        isin: \"INEBETA00021\",
+        security_type: \"equity\",
+        nse_symbol: \"BETAMFG\",
+        bse_code: \"532100\",
+        is_primary: true
+      }
+    ]
+  },
+  {
+    id: \"33333333-3333-3333-3333-333333333333\",
+    cin: \"L45454MH2004PLC000333\",
+    legal_name: \"Sunrise Foods Limited\",
+    display_name: \"Sunrise Foods\",
+    sector: \"Consumer\",
+    listing_status: \"listed\",
+    securities: [
+      {
+        id: \"s-sunrise-foods\",
+        company_id: \"33333333-3333-3333-3333-333333333333\",
+        isin: \"INESUNRISE001\",
+        security_type: \"equity\",
+        nse_symbol: \"SUNFOOD\",
+        bse_code: \"532333\",
+        is_primary: true
+      }
+    ]
+  },
+  {
+    id: \"44444444-4444-4444-4444-444444444444\",
+    cin: \"U40101KA2014PTC000321\",
+    legal_name: \"Sunrise Energy Private Limited\",
+    display_name: \"Sunrise Energy\",
+    sector: \"Energy\",
+    listing_status: \"private\",
+    securities: []
+  },
+  {
+    id: \"55555555-5555-5555-5555-555555555555\",
+    cin: \"L11111GJ2007PLC000555\",
+    legal_name: \"Lotus Brands Limited\",
+    display_name: \"Lotus Brands\",
+    sector: \"Consumer\",
+    listing_status: \"listed\",
+    securities: [
+      {
+        id: \"s-lotus-equity\",
+        company_id: \"55555555-5555-5555-5555-555555555555\",
+        isin: \"INELOTUS00011\",
+        security_type: \"equity\",
+        nse_symbol: \"LOTUS\",
+        bse_code: \"540555\",
+        is_primary: true
+      },
+      {
+        id: \"s-lotus-preference\",
+        company_id: \"55555555-5555-5555-5555-555555555555\",
+        isin: \"INELOTUS00029\",
+        security_type: \"preference\",
+        nse_symbol: \"LOTUSP\",
+        bse_code: \"940555\",
+        is_primary: false
+      }
+    ]
+  }
+];
+EOF")
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/__tests__/company-resolver.test.ts <<'EOF'
+import { describe, expect, it } from \"vitest\";
+import { CompanyResolver } from \"../company-resolver.ts\";
+import { resolverFixtureCompanies } from \"../__fixtures__/company-resolver.fixture.ts\";
+
+describe(\"CompanyResolver\", () => {
+  const resolver = new CompanyResolver(resolverFixtureCompanies);
+
+  it(\"resolves exact NSE symbol\", () => {
+    const resolved = resolver.resolve(\"ALPHA\");
+    expect(resolved?.id).toBe(\"11111111-1111-1111-1111-111111111111\");
+  });
+
+  it(\"resolves exact BSE code\", () => {
+    const resolved = resolver.resolve(\"532100\");
+    expect(resolved?.id).toBe(\"22222222-2222-2222-2222-222222222222\");
+  });
+
+  it(\"resolves exact ISIN\", () => {
+    const resolved = resolver.resolve(\"INELOTUS00029\");
+    expect(resolved?.id).toBe(\"55555555-5555-5555-5555-555555555555\");
+  });
+
+  it(\"resolves CIN for a private company\", () => {
+    const resolved = resolver.resolve(\"u40101ka2014ptc000321\");
+    expect(resolved?.id).toBe(\"44444444-4444-4444-4444-444444444444\");
+    expect(resolved?.listing_status).toBe(\"private\");
+  });
+
+  it(\"resolves fuzzy name\", () => {
+    const resolved = resolver.resolve(\"beta manufa\");
+    expect(resolved?.id).toBe(\"22222222-2222-2222-2222-222222222222\");
+  });
+
+  it(\"returns null for ambiguous brand name\", () => {
+    const resolved = resolver.resolve(\"sunrise\");
+    expect(resolved).toBeNull();
+  });
+
+  it(\"returns null for garbage input\", () => {
+    const resolved = resolver.resolve(\"%%% ???\");
+    expect(resolved).toBeNull();
+  });
+
+  it(\"returns primary security when company has dual class listings\", () => {
+    const resolved = resolver.resolve(\"Lotus Brands\");
+    expect(resolved?.id).toBe(\"55555555-5555-5555-5555-555555555555\");
+    expect(resolved?.primary_security?.isin).toBe(\"INELOTUS00011\");
+    expect(resolved?.primary_security?.is_primary).toBe(true);
+  });
+});
+EOF")
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/company-resolver.ts <<'EOF'
+export type ResolverSecurity = {
+  id: string;
+  company_id: string;
+  isin: string;
+  security_type: string | null;
+  nse_symbol: string | null;
+  bse_code: string | null;
+  is_primary: boolean;
+};
+
+export type ResolverCompany = {
+  id: string;
+  cin: string | null;
+  legal_name: string;
+  display_name: string;
+  sector: string | null;
+  listing_status: string | null;
+  securities: ResolverSecurity[];
+};
+
+export type CanonicalCompany = {
+  id: string;
+  cin: string | null;
+  legal_name: string;
+  display_name: string;
+  sector: string | null;
+  listing_status: string | null;
+  primary_security: ResolverSecurity | null;
+};
+
+type InternalCompany = ResolverCompany & {
+  nameKeys: string[];
+  tokenSet: Set<string>;
+};
+
+function normalizeWhitespace(value: string): string {
+  return value.trim().replace(/\\s+/g, \" \");
+}
+
+function normalizeKey(value: string): string {
+  return normalizeWhitespace(value).toUpperCase().replace(/["'^A-Z0-9]/g, "");
+}
+
+function tokenize(value: string): string[] {
+  return normalizeWhitespace(value)
+    .toLowerCase()
+    .replace(/[''^a-z0-9'"\\s]/g, \" \")
+    .split(/\\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1);
+}
+
+function normalizeBseCode(value: string): string {
+  return value.trim().replace(/"'^0+/, "");
+}
+
+function uniqueCompanyForKey(key: string, index: Map<string, Set<string>>): string | null {
+  const ids = index.get(key);
+  if (!ids || ids.size !== 1) {
+    return null;
+  }
+
+  const [companyId] = ids;
+  return companyId ?? null;
+}
+
+function choosePrimarySecurity(securities: ResolverSecurity[]): ResolverSecurity | null {
+  if (securities.length === 0) {
+    return null;
+  }
+
+  const primaryCandidates = securities.filter((security) => security.is_primary);
+  const source = primaryCandidates.length > 0 ? primaryCandidates : securities;
+
+  return source
+    .slice()
+    .sort((a, b) => {
+      const aRank = a.nse_symbol ? 0 : a.bse_code ? 1 : 2;
+      const bRank = b.nse_symbol ? 0 : b.bse_code ? 1 : 2;
+      if (aRank !== bRank) {
+        return aRank - bRank;
+      }
+
+      return a.isin.localeCompare(b.isin);
+    })[0];
+}
+
+function withCanonicalShape(company: ResolverCompany): CanonicalCompany {
+  return {
+    id: company.id,
+    cin: company.cin,
+    legal_name: company.legal_name,
+    display_name: company.display_name,
+    sector: company.sector,
+    listing_status: company.listing_status,
+    primary_security: choosePrimarySecurity(company.securities)
+  };
+}
+
+export class CompanyResolver {
+  private readonly companiesById = new Map<string, InternalCompany>();
+  private readonly cinIndex = new Map<string, Set<string>>();
+  private readonly isinIndex = new Map<string, Set<string>>();
+  private readonly nseIndex = new Map<string, Set<string>>();
+  private readonly bseIndex = new Map<string, Set<string>>();
+  private readonly nameIndex = new Map<string, Set<string>>();
+
+  constructor(companies: readonly ResolverCompany[]) {
+    for (const company of companies) {
+      const nameKeys = [normalizeKey(company.display_name), normalizeKey(company.legal_name)].filter(
+        (key, index, values) => key.length > 0 && values.indexOf(key) === index
+      );
+
+      const tokenSet = new Set<string>([
+        ...tokenize(company.display_name),
+        ...tokenize(company.legal_name)
+      ]);
+
+      const internal: InternalCompany = {
+        ...company,
+        securities: company.securities.slice(),
+        nameKeys,
+        tokenSet
+      };
+
+      this.companiesById.set(company.id, internal);
+
+      if (company.cin) {
+        this.addIndex(this.cinIndex, normalizeKey(company.cin), company.id);
+      }
+
+      for (const nameKey of nameKeys) {
+        this.addIndex(this.nameIndex, nameKey, company.id);
+      }
+
+      for (const security of company.securities) {
+        this.addIndex(this.isinIndex, normalizeKey(security.isin), company.id);
+
+        if (security.nse_symbol) {
+          this.addIndex(this.nseIndex, normalizeKey(security.nse_symbol), company.id);
+        }
+
+        if (security.bse_code) {
+          this.addIndex(this.bseIndex, normalizeBseCode(security.bse_code), company.id);
+        }
+      }
+    }
+  }
+
+  resolve(query: string): CanonicalCompany | null {
+    const trimmed = normalizeWhitespace(query);
+    if (!trimmed) {
+      return null;
+    }
+
+    const key = normalizeKey(trimmed);
+    const bseKey = normalizeBseCode(trimmed);
+
+    const exactCompanyId =
+      uniqueCompanyForKey(key, this.cinIndex) ??
+      uniqueCompanyForKey(key, this.isinIndex) ??
+      uniqueCompanyForKey(key, this.nseIndex) ??
+      uniqueCompanyForKey(bseKey, this.bseIndex) ??
+      uniqueCompanyForKey(key, this.nameIndex);
+
+    if (exactCompanyId) {
+      const company = this.companiesById.get(exactCompanyId);
+      return company ? withCanonicalShape(company) : null;
+    }
+
+    return this.resolveByFuzzyName(trimmed);
+  }
+
+  private addIndex(index: Map<string, Set<string>>, key: string, companyId: string): void {
+    if (!key) {
+      return;
+    }
+
+    const existing = index.get(key);
+    if (existing) {
+      existing.add(companyId);
+      return;
+    }
+
+    index.set(key, new Set([companyId]));
+  }
+
+  private resolveByFuzzyName(query: string): CanonicalCompany | null {
+    const queryKey = normalizeKey(query);
+    const queryTokens = tokenize(query);
+
+    if (!queryKey || queryTokens.length === 0) {
+      return null;
+    }
+
+    const scored = Array.from(this.companiesById.values())
+      .map((company) => ({
+        company,
+        score: this.scoreCompany(queryKey, queryTokens, company)
+      }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    if (scored.length === 0) {
+      return null;
+    }
+
+    const [top, second] = scored;
+
+    if (top.score < 0.45) {
+      return null;
+    }
+
+    if (second && Math.abs(top.score - second.score) < 0.05) {
+      return null;
+    }
+
+    return withCanonicalShape(top.company);
+  }
+
+  private scoreCompany(queryKey: string, queryTokens: string[], company: InternalCompany): number {
+    let best = 0;
+
+    for (const nameKey of company.nameKeys) {
+      if (nameKey === queryKey) {
+        return 1;
+      }
+
+      if (nameKey.startsWith(queryKey) || queryKey.startsWith(nameKey)) {
+        best = Math.max(best, 0.9);
+      } else if (nameKey.includes(queryKey)) {
+        best = Math.max(best, 0.8);
+      }
+    }
+
+    let overlap = 0;
+    for (const token of queryTokens) {
+      if (company.tokenSet.has(token)) {
+        overlap += 1;
+      }
+    }
+
+    const coverageScore = overlap / queryTokens.length;
+    if (coverageScore > 0) {
+      best = Math.max(best, coverageScore * 0.75);
+    }
+
+    return best;
+  }
+}
+EOF')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase exec vitest run')
+Resolver tests are passing. I’m now wiring the new `companies` Edge Function for `POST /functions/v1/companies/resolve`, reusing the resolver module and returning only the canonical fields required by the issue.
+Bash(/bin/bash -lc "mkdir -p supabase/functions/companies && cat > supabase/functions/companies/index.ts <<'EOF'
+import \"jsr:@supabase/functions-js/edge-runtime.d.ts\";
+import { CompanyResolver, type ResolverCompany } from \"../_shared/company-resolver.ts\";
+import { corsHeaders, jsonResponse } from \"../_shared/http.ts\";
+import { createServiceClient, createUserClient } from \"../_shared/supabase.ts\";
+
+type ResolveBody = {
+  query?: string;
+};
+
+type CompanyRow = {
+  id: string;
+  cin: string | null;
+  legal_name: string;
+  display_name: string;
+  sector: string | null;
+  listing_status: string | null;
+  securities:
+    | {
+        id: string;
+        company_id: string;
+        isin: string;
+        security_type: string | null;
+        nse_symbol: string | null;
+        bse_code: string | null;
+        is_primary: boolean;
+      }[]
+    | null;
+};
+
+function normalizePath(pathname: string): string {
+  return pathname.replace(/\\/+"'$/, "");
+}
+
+function toResolverCompanies(rows: CompanyRow[]): ResolverCompany[] {
+  return rows.map((row) => ({
+    id: row.id,
+    cin: row.cin,
+    legal_name: row.legal_name,
+    display_name: row.display_name,
+    sector: row.sector,
+    listing_status: row.listing_status,
+    securities: row.securities ?? []
+  }));
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse(405, { error: "Method not allowed." });
+  }
+
+  const pathname = normalizePath(new URL(request.url).pathname);
+  if (!pathname.endsWith("/resolve")) {
+    return jsonResponse(404, { error: "Route not found." });
+  }
+
+  const authorization = request.headers.get("Authorization");
+  if (!authorization) {
+    return jsonResponse(401, { error: "Missing Authorization header." });
+  }
+
+  const userClient = createUserClient(authorization);
+
+  const {
+    data: { user },
+    error: userError
+  } = await userClient.auth.getUser();
+
+  if (userError || !user) {
+    return jsonResponse(401, { error: "Invalid user session." });
+  }
+
+  let body: ResolveBody;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(400, { error: "Invalid JSON body." });
+  }
+
+  const query = body.query?.trim();
+  if (!query) {
+    return jsonResponse(400, { error: "query is required." });
+  }
+
+  const serviceClient = createServiceClient();
+  const { data: companyRows, error: companyError } = await serviceClient
+    .from("companies")
+    .select(
+      "id, cin, legal_name, display_name, sector, listing_status, securities(id, company_id, isin, security_type, nse_symbol, bse_code, is_primary)"
+    )
+    .limit(5000)
+    .returns<CompanyRow[]>();
+
+  if (companyError) {
+    return jsonResponse(500, { error: companyError.message });
+  }
+
+  const resolver = new CompanyResolver(toResolverCompanies(companyRows ?? []));
+  const company = resolver.resolve(query);
+
+  return jsonResponse(200, {
+    company
+  });
+});
+EOF')
+Bash(/bin/bash -lc "cat > web/app/company-resolver-panel.tsx <<'EOF'
+\"use client\";
+
+import { FormEvent, useMemo, useState } from \"react\";
+import { getSupabaseBrowserClient } from \"../lib/supabase/browser\";
+import { getSupabaseEnv } from \"../lib/supabase/env\";
+
+type PrimarySecurity = {
+  id: string;
+  isin: string;
+  security_type: string | null;
+  nse_symbol: string | null;
+  bse_code: string | null;
+  is_primary: boolean;
+};
+
+type CanonicalCompany = {
+  id: string;
+  legal_name: string;
+  display_name: string;
+  sector: string | null;
+  listing_status: string | null;
+  primary_security: PrimarySecurity | null;
+};
+
+export function CompanyResolverPanel() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [query, setQuery] = useState(\"\");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [company, setCompany] = useState<CanonicalCompany | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSubmitted(false);
+
+    const {
+      data: { session },
+      error: sessionError
+    } = await supabase.auth.getSession();
+
+    if (sessionError || "'!session?.access_token) {
+      setBusy(false);
+      setError("You must be signed in to resolve companies.");
+      return;
+    }
+
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv();
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/companies/resolve`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: supabaseAnonKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ query })
+    });
+
+    const payload = (await response.json()) as { error?: string; company?: CanonicalCompany | null };
+
+    if (!response.ok) {
+      setBusy(false);
+      setCompany(null);
+      setError(payload.error ?? "Company resolver request failed.");
+      return;
+    }
+
+    setBusy(false);
+    setSubmitted(true);
+    setCompany(payload.company ?? null);
+  }
+
+  return (
+    <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+      <h2 className="text-2xl font-semibold">Company Resolver</h2>
+      <p className="text-sm text-slate-300">Resolve ticker/name/CIN/ISIN into canonical company metadata.</p>
+
+      <form className="flex flex-col gap-3 md:flex-row" onSubmit={onSubmit}>
+        <input
+          className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-3 py-2"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Try ALPHA, 532100, INELOTUS00029, or company name"
+          required
+          value={query}
+        />
+        <button
+          className="rounded-md bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
+          disabled={busy}
+          type="submit"
+        >
+          Resolve
+        </button>
+      </form>
+
+      {submitted && !company ? <p className="text-sm text-amber-200">No canonical company match found.</p> : null}
+
+      {company ? (
+        <div className="space-y-2 rounded-md border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-200">
+          <p>
+            <span className="text-slate-400">Company ID:</span> {company.id}
+          </p>
+          <p>
+            <span className="text-slate-400">Legal Name:</span> {company.legal_name}
+          </p>
+          <p>
+            <span className="text-slate-400">Display Name:</span> {company.display_name}
+          </p>
+          <p>
+            <span className="text-slate-400">Sector:</span> {company.sector ?? "-"}
+          </p>
+          <p>
+            <span className="text-slate-400">Listing Status:</span> {company.listing_status ?? "-"}
+          </p>
+          <p>
+            <span className="text-slate-400">Primary Security:</span>{" "}
+            {company.primary_security
+              ? `${company.primary_security.isin} | NSE ${company.primary_security.nse_symbol ?? "-"} | BSE ${company.primary_security.bse_code ?? "-"}`
+              : "-"}
+          </p>
+        </div>
+      ) : null}
+
+      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+    </section>
+  );
+}
+EOF')
+I’ve added the web panel and wired it into the page. Next I’m updating `supabase/package.json` to add explicit Vitest scripts so the new fixture suite is runnable as part of normal workspace testing.
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc 'corepack pnpm --filter supabase run test:unit')
+Core implementation is in place. I’m running the required repo checks now: `npm run typecheck` and `npm run test` from the workspace root.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc 'git status --short')
+I’ve finished implementation and validation runs. I’m now reviewing the full diff (including lock/workspace metadata changes from dependency install) before committing.
+Bash(/bin/bash -lc 'git diff -- supabase/functions/_shared/company-resolver.ts supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts supabase/functions/_shared/__tests__/company-resolver.test.ts supabase/functions/companies/index.ts web/app/company-resolver-panel.tsx web/app/page.tsx supabase/package.json')
+Bash(/bin/bash -lc 'git diff -- pnpm-workspace.yaml pnpm-lock.yaml')
+Bash(/bin/bash -lc 'cat supabase/functions/companies/index.ts')
+Bash(/bin/bash -lc 'cat supabase/functions/_shared/company-resolver.ts')
+Bash(/bin/bash -lc 'cat web/app/company-resolver-panel.tsx')
+Bash(/bin/bash -lc 'cat supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts')
+Bash(/bin/bash -lc 'cat supabase/functions/_shared/__tests__/company-resolver.test.ts')
+I’m staging the scoped changes and creating the required `RALPH:` commit message with PRD reference plus decisions/files/notes.
+Bash(/bin/bash -lc "git add supabase/functions/_shared/company-resolver.ts supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts supabase/functions/_shared/__tests__/company-resolver.test.ts supabase/functions/companies/index.ts web/app/company-resolver-panel.tsx web/app/page.tsx supabase/package.json pnpm-lock.yaml pnpm-workspace.yaml && git commit -m \"RALPH: complete issue #24 company resolver module + Vitest fixture suite (PRD AD-8)\" -m \"Task completed + PRD reference:\\n- Implemented issue #24 Company Resolver aligned to docs/PRD.md AD-8 canonical company/security identity and API contract for /functions/v1/companies/resolve.\\n\\nKey decisions made:\\n- Added a pure CompanyResolver module with deterministic match order (CIN/ISIN/NSE/BSE/exact name) plus fuzzy-name fallback and explicit ambiguity null-handling.\\n- Added Vitest fixture coverage for all adversarial cases in the issue contract, including dual-class primary-security selection via is_primary.\\n- Implemented a new companies Edge Function route handler for POST /functions/v1/companies/resolve requiring auth and returning canonical company fields + primary security.\\n- Added a Next.js Company Resolver search panel that POSTs to /functions/v1/companies/resolve and renders canonical results.\\n\\nFiles changed:\\n- supabase/functions/_shared/company-resolver.ts\\n- supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts\\n- supabase/functions/_shared/__tests__/company-resolver.test.ts\\n- supabase/functions/companies/index.ts\\n- web/app/company-resolver-panel.tsx\\n- web/app/page.tsx\\n- supabase/package.json\\n- pnpm-lock.yaml\\n- pnpm-workspace.yaml\\n\\nBlockers or notes for next iteration:\\n- npm run typecheck passes.\\n- npm run test runs the new Vitest suite successfully, but overall test command fails in this environment because local Supabase/Postgres is not running at 127.0.0.1:54322 for DB tests.\"")
+Bash(/bin/bash -lc 'git status --short --branch')
+Implemented issue `#24` on branch `sandcastle/issue-24-company-resolver-module-vitest-fixture-suite` and committed as `b4e4121`.
+
+Changed files:
+- [company-resolver.ts](/home/agent/workspace/supabase/functions/_shared/company-resolver.ts)
+- [company-resolver.fixture.ts](/home/agent/workspace/supabase/functions/_shared/__fixtures__/company-resolver.fixture.ts)
+- [company-resolver.test.ts](/home/agent/workspace/supabase/functions/_shared/__tests__/company-resolver.test.ts)
+- [companies/index.ts](/home/agent/workspace/supabase/functions/companies/index.ts)
+- [company-resolver-panel.tsx](/home/agent/workspace/web/app/company-resolver-panel.tsx)
+- [page.tsx](/home/agent/workspace/web/app/page.tsx)
+- [supabase/package.json](/home/agent/workspace/supabase/package.json)
+- [pnpm-lock.yaml](/home/agent/workspace/pnpm-lock.yaml)
+- [pnpm-workspace.yaml](/home/agent/workspace/pnpm-workspace.yaml)
+
+Validation run:
+1. `npm run typecheck` passed.
+2. `npm run test` ran Vitest successfully (`8/8` resolver tests passed) but failed on DB tests because local Postgres/Supabase is unavailable at `127.0.0.1:54322`.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

@@ -1,0 +1,1557 @@
+
+--- Run started: 2026-05-10T05:49:02.339Z ---
+Sandcastle Run
+  Agent: implementer-27
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-27-earnings-reviewer-streaming-end-to-end-retail-layer-3-report
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (3.3s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1881 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m pulling the authoritative requirements first: `AGENTS.md`, issue `#27` with comments, issue `#1` with comments, and `docs/PRD.md`, then I’ll map the exact acceptance criteria to existing code/tests before editing.
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'pwd && ls -la')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'gh issue view 27 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+I have the PRD loaded, but `gh issue view` returned no body in this shell output, so next I’m fetching issue `#27` and parent issue `#1` via JSON/API to capture the exact contract text and comments reliably.
+Bash(/bin/bash -lc "cat docs/agents/issue-tracker.md && echo '---' && cat docs/agents/triage-labels.md && echo '---' && cat docs/agents/domain.md")
+Bash(/bin/bash -lc 'gh issue view 27 --comments --json number,title,body,comments,url,labels,assignees,state')
+Bash(/bin/bash -lc 'gh issue view 1 --comments --json number,title,body,comments,url,labels,assignees,state')
+I now have the exact issue contract. Next I’m loading `CONTEXT.md` and ADRs, then I’ll inspect the current `reports` edge-function + web streaming UI paths and tests to implement only issue #27 scope.
+Bash(/bin/bash -lc 'cat CONTEXT.md')
+Bash(/bin/bash -lc "ls -la docs/adr && for f in docs/adr/*.md; do echo '---'; echo \""'$f"; sed -n '"'1,220p' \""'$f"; done')
+Bash(/bin/bash -lc "git status --short --branch && git branch --all --list '*issue-27*'")
+Bash(/bin/bash -lc "rg --files supabase/functions web | sed -n '1,240p'")
+The branch is already set to the required issue-27 branch. `CONTEXT.md`/`docs/adr` are not present here and `rg` isn’t installed, so I’m using `find`/`grep` to locate the reports, agent, and UI streaming code plus related tests.
+Bash(/bin/bash -lc 'find supabase/functions -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc 'find web -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc "cat package.json && echo '---' && cat supabase/package.json && echo '---' && cat web/package.json")
+Bash(/bin/bash -lc "find supabase -maxdepth 3 -type f | grep -E '__tests__|tests|fixture|fixtures|reports|agent|audit|composition|job|source|document|anthropic' | sort")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' web/app/page.tsx")
+Bash(/bin/bash -lc "sed -n '1,280p' web/app/report-panel.tsx")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/migrations/20260509233000_issue_33_agency_projects_reports_cache_bypass.sql")
+Bash(/bin/bash -lc 'find supabase/migrations -maxdepth 1 -type f | sort')
+Bash(/bin/bash -lc "sed -n '1,360p' supabase/tests/issue_33_agency_projects_cache_bypass.sql")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/functions/_shared/source-ingestor.ts && echo '---' && sed -n '1,320p' supabase/functions/_shared/document-cache.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/cors.ts && echo '---' && sed -n '1,240p' supabase/functions/_shared/http.ts && echo '---' && sed -n '1,260p' supabase/functions/_shared/supabase.ts")
+Bash(/bin/bash -lc "sed -n '1,240p' web/lib/supabase/browser.ts && echo '---' && sed -n '1,240p' web/lib/supabase/env.ts && echo '---' && sed -n '1,260p' web/app/auth-panel.tsx")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/functions/_shared/__tests__/document-cache.test.ts && echo '---' && sed -n '1,320p' supabase/functions/_shared/__tests__/company-resolver.test.ts")
+Bash(/bin/bash -lc "sed -n '1,320p' supabase/functions/_shared/entitlements.ts && echo '---' && sed -n '1,260p' supabase/functions/me/index.ts")
+Bash(/bin/bash -lc "find supabase -maxdepth 2 -type f | sort | sed -n '1,240p' && echo '---' && cat supabase/tsconfig.json")
+Bash(/bin/bash -lc 'cat tsconfig.base.json')
+Bash(/bin/bash -lc 'find supabase/functions/_shared -maxdepth 2 -type f | sort')
+Bash(/bin/bash -lc "grep -R \"runReportAgent\\|runAgent(\" -n supabase web | sed -n '1,200p'")
+Bash(/bin/bash -lc "grep -n \"AD-5\\|AD-6\\|AD-7\\|Earnings Reviewer\\|POST /functions/v1/reports\\|stream\" -n docs/PRD.md | sed -n '1,240p'")
+Bash(/bin/bash -lc "sed -n '640,700p' docs/PRD.md")
+Bash(/bin/bash -lc "sed -n '1,360p' web/app/agency-dashboard.tsx")
+Bash(/bin/bash -lc 'cat supabase/eslint.config.mjs')
+Bash(/bin/bash -lc 'cat eslint.config.mjs')
+I’ve mapped the gap: `reports` currently does synchronous JSON generation, while issue #27 requires SSE streaming for `earnings_summary` with final tool payload persistence and agent-run cost audit.  
+Plan:
+1. Add a streaming-capable `runAgent({ type, context, sessionMode: 'stream' })` in `supabase/functions/_shared/agent-orchestrator.ts` that:
+   - calls Anthropic with `anthropic-beta: managed-agents-2026-04-01`
+   - returns an SSE stream passthrough
+   - extracts final `submit_earnings_summary` tool args from stream events
+   - tracks tokens/duration/cost metadata for audit logging
+2. Update `supabase/functions/reports/index.ts`:
+   - keep existing non-earnings behavior unchanged
+   - for `earnings_summary`, return `text/event-stream`
+   - pipe stream to client and on completion persist `reports` row (`status: succeeded`, `payload`) plus `audit_events` with `agent_id`, tokens, duration, cost
+   - preserve entitlements, source ingestion, and usage event recording
+3. Add RED tests for the new orchestrator stream parser/collector, then implement GREEN and refactor.
+4. Update Next.js `web/app/report-panel.tsx` to consume SSE directly, render live thinking trail, and show final completion/report id in UI.
+5. Run `npm run typecheck` and `npm run test`, then commit with the required message format.
+I’m starting RED now by adding a focused unit test for stream event collection in `agent-orchestrator` (tool payload assembly from SSE deltas + usage/cost metadata extraction) before touching implementation.
+Bash(/bin/bash -lc "cat > /home/agent/workspace/supabase/functions/_shared/__tests__/agent-orchestrator.test.ts <<'EOF'
+import { describe, expect, it } from \"vitest\";
+import {
+  estimateCostUsd,
+  extractToolPayloadFromSse,
+  parseUsageFromSseData,
+  type AgentUsage
+} from \"../agent-orchestrator.ts\";
+
+describe(\"agent orchestrator SSE helpers\", () => {
+  it(\"extracts final tool payload from streamed input_json_delta chunks\", () => {
+    const toolName = \"submit_earnings_summary\";
+
+    const events = [
+      "'`event: content_block_start'"\\ndata: "'${JSON.stringify({
+        type: "content_block_start",
+        index: 1,
+        content_block: {
+          type: "tool_use",
+          name: toolName
+        }
+      })}'"\\n\\n"'`,
+      `event: content_block_delta'"\\ndata: "'${JSON.stringify({
+        type: "content_block_delta",
+        index: 1,
+        delta: {
+          type: "input_json_delta",
+          partial_json: '"'{\"executive_summary\":\"Q4 was resilient\",'
+        }
+      })}\\n\\n"'`,
+      `event: content_block_delta'"\\ndata: "'${JSON.stringify({
+        type: "content_block_delta",
+        index: 1,
+        delta: {
+          type: "input_json_delta",
+          partial_json: '"'\"key_takeaways\":[\"Margins expanded\"],\"source_documents_used\":[\"doc-1\"]}'
+        }
+      })}\\n\\n"'`,
+      `event: content_block_stop'"\\ndata: "'${JSON.stringify({
+        type: "content_block_stop",
+        index: 1
+      })}'"\\n\\n"'`
+    ];
+
+    const payload = extractToolPayloadFromSse(events.join(""), toolName);
+
+    expect(payload).toEqual({
+      executive_summary: "Q4 was resilient",
+      key_takeaways: ["Margins expanded"],
+      source_documents_used: ["doc-1"]
+    });
+  });
+
+  it("prefers direct tool_use input when present", () => {
+    const toolName = "submit_earnings_summary";
+
+    const payload = extractToolPayloadFromSse(
+      `event: content_block_start'"\\ndata: "'${JSON.stringify({
+        type: "content_block_start",
+        index: 0,
+        content_block: {
+          type: "tool_use",
+          name: toolName,
+          input: {
+            executive_summary: "Direct payload",
+            key_takeaways: ["Takeaway"],
+            source_documents_used: ["doc-2"]
+          }
+        }
+      })}'"\\n\\n"'`,
+      toolName
+    );
+
+    expect(payload).toEqual({
+      executive_summary: "Direct payload",
+      key_takeaways: ["Takeaway"],
+      source_documents_used: ["doc-2"]
+    });
+  });
+
+  it("reads usage from stream events and estimates cost", () => {
+    const usage = [
+      parseUsageFromSseData(
+        JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 1200 } } })
+      ),
+      parseUsageFromSseData(
+        JSON.stringify({ type: "message_delta", usage: { output_tokens: 340, input_tokens: 1200 } })
+      )
+    ].reduce<AgentUsage>(
+      (acc, next) => ({
+        inputTokens: next.inputTokens ?? acc.inputTokens,
+        outputTokens: next.outputTokens ?? acc.outputTokens
+      }),
+      { inputTokens: null, outputTokens: null }
+    );
+
+    expect(usage).toEqual({ inputTokens: 1200, outputTokens: 340 });
+    expect(estimateCostUsd(usage, { inputPerMillion: 15, outputPerMillion: 75 })).toBeCloseTo(0.0435);
+  });
+});
+EOF')
+Bash(/bin/bash -lc 'corepack pnpm --dir supabase vitest run functions/_shared/__tests__/agent-orchestrator.test.ts')
+The new test file is in place and I’m running it now; dependency install is taking time in this environment, then I’ll capture the RED failure and proceed to implementation.
+Bash(/bin/bash -lc 'corepack pnpm --dir supabase run test:unit -- functions/_shared/__tests__/agent-orchestrator.test.ts')
+Agent idle for 1 minute
+Bash(/bin/bash -lc "cat > /home/agent/workspace/supabase/functions/_shared/agent-orchestrator.ts <<'EOF'
+export type ReportType = \"earnings_summary\" | \"due_diligence\" | \"lead_intel\";
+
+const TOOL_BY_REPORT_TYPE: Record<ReportType, string> = {
+  earnings_summary: \"submit_earnings_summary\",
+  due_diligence: \"submit_due_diligence_report\",
+  lead_intel: \"submit_lead_intel_report\"
+};
+
+const AGENT_ENV_BY_REPORT_TYPE: Record<ReportType, string> = {
+  earnings_summary: \"ANTHROPIC_AGENT_ID_EARNINGS_REVIEWER\",
+  due_diligence: \"ANTHROPIC_AGENT_ID_DUE_DILIGENCE_ANALYST\",
+  lead_intel: \"ANTHROPIC_AGENT_ID_LEAD_INTEL_GENERATOR\"
+};
+
+type AgentContext = {
+  companyId: string;
+  sourceDocumentIds: string[];
+  customSources: string[];
+  projectId: string | null;
+};
+
+export type AgentRunInput = {
+  type: ReportType;
+  context: AgentContext;
+  sessionMode: \"stream\" | \"sync\";
+};
+
+export type AgentUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
+type CostRates = {
+  inputPerMillion: number;
+  outputPerMillion: number;
+};
+
+type AgentCompletion = {
+  payload: Record<string, unknown>;
+  usage: AgentUsage;
+  durationMs: number;
+  cost: number | null;
+};
+
+type BaseRunResult = {
+  toolName: string;
+  agentId: string;
+  agentVersion: string;
+};
+
+export type StreamRunResult = BaseRunResult & {
+  mode: \"stream\";
+  stream: ReadableStream<Uint8Array>;
+  completion: Promise<AgentCompletion>;
+};
+
+export type SyncRunResult = BaseRunResult & {
+  mode: \"sync\";
+  completion: Promise<AgentCompletion>;
+};
+
+export type AgentRunResult = StreamRunResult | SyncRunResult;
+
+function toPositiveNumber(value: string | undefined, fallback = 0): number {
+  if ("'!value) return fallback;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function getCostRates(): CostRates {
+  return {
+    inputPerMillion: toPositiveNumber(Deno.env.get("ANTHROPIC_INPUT_COST_PER_MILLION_USD"), 0),
+    outputPerMillion: toPositiveNumber(Deno.env.get("ANTHROPIC_OUTPUT_COST_PER_MILLION_USD"), 0)
+  };
+}
+
+export function estimateCostUsd(usage: AgentUsage, rates: CostRates): number | null {
+  if (usage.inputTokens === null && usage.outputTokens === null) {
+    return null;
+  }
+
+  const inputComponent = ((usage.inputTokens ?? 0) / 1_000_000) * rates.inputPerMillion;
+  const outputComponent = ((usage.outputTokens ?? 0) / 1_000_000) * rates.outputPerMillion;
+  return Number((inputComponent + outputComponent).toFixed(10));
+}
+
+function buildAnthropicBody(input: AgentRunInput, toolName: string, agentId: string, stream: boolean) {
+  return {
+    model: "claude-opus-4-7",
+    max_tokens: 1200,
+    stream,
+    tools: [
+      {
+        name: toolName,
+        description: `Submit final ${input.type} report payload`,
+        input_schema: {
+          type: "object",
+          properties: {
+            executive_summary: { type: "string" },
+            key_takeaways: { type: "array", items: { type: "string" } },
+            source_documents_used: { type: "array", items: { type: "string" } }
+          },
+          required: ["executive_summary", "key_takeaways", "source_documents_used"],
+          additionalProperties: true
+        }
+      }
+    ],
+    tool_choice: { type: "tool", name: toolName },
+    messages: [
+      {
+        role: "user",
+        content: JSON.stringify({
+          agent_id: agentId,
+          report_type: input.type,
+          company_id: input.context.companyId,
+          source_document_ids: input.context.sourceDocumentIds,
+          custom_sources: input.context.customSources,
+          project_id: input.context.projectId
+        })
+      }
+    ]
+  };
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export function parseUsageFromSseData(data: string): AgentUsage {
+  try {
+    const parsed = JSON.parse(data) as {
+      usage?: { input_tokens?: unknown; output_tokens?: unknown };
+      message?: { usage?: { input_tokens?: unknown; output_tokens?: unknown } };
+    };
+
+    const usage = parsed.usage ?? parsed.message?.usage;
+
+    return {
+      inputTokens: toNumberOrNull(usage?.input_tokens),
+      outputTokens: toNumberOrNull(usage?.output_tokens)
+    };
+  } catch {
+    return { inputTokens: null, outputTokens: null };
+  }
+}
+
+function forEachSseEvent(
+  sseText: string,
+  onEvent: (eventName: string, data: string) => void
+): void {
+  const normalized = sseText.replaceAll("'"\\r\\n\", \"\\n\").replaceAll(\"\\r\", \"\\n\");
+  const lines = normalized.split(\"\\n\");
+
+  let eventName = \"message\";
+  let dataLines: string[] = [];
+
+  const flush = () => {
+    if (dataLines.length === 0) {
+      eventName = \"message\";
+      return;
+    }
+
+    const data = dataLines.join(\"\\n\");
+    onEvent(eventName, data);
+    eventName = \"message\";
+    dataLines = [];
+  };
+
+  for (const line of lines) {
+    if (line.length === 0) {
+      flush();
+      continue;
+    }
+
+    if (line.startsWith(\"event:\")) {
+      eventName = line.slice(\"event:\".length).trim();
+      continue;
+    }
+
+    if (line.startsWith(\"data:\")) {
+      dataLines.push(line.slice(\"data:\".length).trimStart());
+    }
+  }
+
+  flush();
+}
+
+type ToolCollectorState = {
+  activeIndex: number | null;
+  partialInput: string;
+  finalPayload: Record<string, unknown> | null;
+};
+
+function updateToolCollector(
+  state: ToolCollectorState,
+  parsed: {
+    type?: string;
+    index?: number;
+    content_block?: { type?: string; name?: string; input?: unknown };
+    delta?: { type?: string; partial_json?: string };
+    name?: string;
+    input?: unknown;
+  },
+  toolName: string
+): void {
+  if (state.finalPayload) {
+    return;
+  }
+
+  if (parsed.type === \"content_block_start\") {
+    if (parsed.content_block?.type === \"tool_use\" && parsed.content_block?.name === toolName) {
+      state.activeIndex = typeof parsed.index === \"number\" ? parsed.index : null;
+      state.partialInput = \"\";
+
+      if (parsed.content_block.input && typeof parsed.content_block.input === \"object\") {
+        state.finalPayload = parsed.content_block.input as Record<string, unknown>;
+      }
+    }
+
+    return;
+  }
+
+  if (parsed.type === \"content_block_delta\") {
+    if (
+      state.activeIndex "'!== null &&
+      parsed.index === state.activeIndex &&
+      parsed.delta?.type === "input_json_delta"
+    ) {
+      state.partialInput += parsed.delta.partial_json ?? "";
+    }
+
+    return;
+  }
+
+  if (parsed.type === "content_block_stop") {
+    if (state.activeIndex !== null && parsed.index === state.activeIndex && state.partialInput.length > 0) {
+      try {
+        const parsedInput = JSON.parse(state.partialInput);
+        if (parsedInput && typeof parsedInput === "object" && !Array.isArray(parsedInput)) {
+          state.finalPayload = parsedInput as Record<string, unknown>;
+        }
+      } catch {
+        // keep null and fail at completion boundary if we never receive a valid tool payload
+      }
+    }
+
+    return;
+  }
+
+  if (parsed.type === "tool_use" && parsed.name === toolName && parsed.input && typeof parsed.input === "object") {
+    state.finalPayload = parsed.input as Record<string, unknown>;
+  }
+}
+
+export function extractToolPayloadFromSse(
+  sseText: string,
+  toolName: string
+): Record<string, unknown> | null {
+  const state: ToolCollectorState = {
+    activeIndex: null,
+    partialInput: "",
+    finalPayload: null
+  };
+
+  forEachSseEvent(sseText, (_eventName, data) => {
+    if (data === "[DONE]") {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(data) as {
+        type?: string;
+        index?: number;
+        content_block?: { type?: string; name?: string; input?: unknown };
+        delta?: { type?: string; partial_json?: string };
+        name?: string;
+        input?: unknown;
+      };
+      updateToolCollector(state, parsed, toolName);
+    } catch {
+      // ignore non-JSON stream chunks
+    }
+  });
+
+  return state.finalPayload;
+}
+
+function extractUsageFromSse(sseText: string): AgentUsage {
+  const usage: AgentUsage = {
+    inputTokens: null,
+    outputTokens: null
+  };
+
+  forEachSseEvent(sseText, (_eventName, data) => {
+    if (data === "[DONE]") {
+      return;
+    }
+
+    const eventUsage = parseUsageFromSseData(data);
+    if (eventUsage.inputTokens !== null) {
+      usage.inputTokens = eventUsage.inputTokens;
+    }
+
+    if (eventUsage.outputTokens !== null) {
+      usage.outputTokens = eventUsage.outputTokens;
+    }
+  });
+
+  return usage;
+}
+
+async function callAnthropicManagedAgent(
+  input: AgentRunInput,
+  toolName: string,
+  agentId: string,
+  anthropicApiKey: string
+): Promise<Record<string, unknown>> {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "managed-agents-2026-04-01"
+    },
+    body: JSON.stringify(buildAnthropicBody(input, toolName, agentId, false))
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Anthropic request failed (${response.status}): ${details}`);
+  }
+
+  const body = (await response.json()) as {
+    content?: Array<{
+      type?: string;
+      name?: string;
+      input?: Record<string, unknown>;
+    }>;
+  };
+
+  const toolUse = body.content?.find((item) => item.type === "tool_use" && item.name === toolName);
+  if (!toolUse?.input) {
+    throw new Error(`Anthropic response missing required tool_use: ${toolName}`);
+  }
+
+  return toolUse.input;
+}
+
+async function collectCompletionFromSse(
+  stream: ReadableStream<Uint8Array>,
+  toolName: string,
+  startedAtMs: number
+): Promise<AgentCompletion> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+
+  let sseText = "";
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      if (value) {
+        sseText += decoder.decode(value, { stream: true });
+      }
+    }
+
+    sseText += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+
+  const payload = extractToolPayloadFromSse(sseText, toolName);
+  if (!payload) {
+    throw new Error(`Anthropic stream completed without final tool payload: ${toolName}`);
+  }
+
+  const usage = extractUsageFromSse(sseText);
+  const durationMs = Math.max(Date.now() - startedAtMs, 0);
+
+  return {
+    payload,
+    usage,
+    durationMs,
+    cost: estimateCostUsd(usage, getCostRates())
+  };
+}
+
+async function callAnthropicManagedAgentStream(
+  input: AgentRunInput,
+  toolName: string,
+  agentId: string,
+  anthropicApiKey: string
+): Promise<{ stream: ReadableStream<Uint8Array>; completion: Promise<AgentCompletion> }> {
+  const startedAtMs = Date.now();
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "managed-agents-2026-04-01"
+    },
+    body: JSON.stringify(buildAnthropicBody(input, toolName, agentId, true))
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Anthropic streaming request failed (${response.status}): ${details}`);
+  }
+
+  if (!response.body) {
+    throw new Error("Anthropic streaming response did not include a body");
+  }
+
+  const [clientStream, collectorStream] = response.body.tee();
+  const completion = collectCompletionFromSse(collectorStream, toolName, startedAtMs);
+
+  return { stream: clientStream, completion };
+}
+
+function createSseStream(text: string): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(text));
+      controller.close();
+    }
+  });
+}
+
+function buildMockPayload(input: AgentRunInput): Record<string, unknown> {
+  return {
+    executive_summary: "Mock report payload because ANTHROPIC_API_KEY is not configured.",
+    key_takeaways: [
+      `Generated for ${input.type}`,
+      `project_id=${input.context.projectId ?? "none"}`,
+      `sources=${input.context.sourceDocumentIds.length}`
+    ],
+    source_documents_used: input.context.sourceDocumentIds.slice().sort()
+  };
+}
+
+function toInputJsonChunks(payload: Record<string, unknown>): string[] {
+  const json = JSON.stringify(payload);
+  const midpoint = Math.max(Math.floor(json.length / 2), 1);
+  return [json.slice(0, midpoint), json.slice(midpoint)];
+}
+
+function buildMockSse(toolName: string, payload: Record<string, unknown>): string {
+  const chunks = toInputJsonChunks(payload);
+
+  return [
+    `event: message_start'"\\ndata: "'${JSON.stringify({
+      type: "message_start",
+      message: { usage: { input_tokens: 1200 } }
+    })}'"\\n\\n"'`,
+    `event: content_block_start'"\\ndata: "'${JSON.stringify({
+      type: "content_block_start",
+      index: 0,
+      content_block: { type: "text", text: "" }
+    })}'"\\n\\n"'`,
+    `event: content_block_delta'"\\ndata: "'${JSON.stringify({
+      type: "content_block_delta",
+      index: 0,
+      delta: { type: "text_delta", text: "Reviewing earnings transcript and extracting key claims..." }
+    })}'"\\n\\n"'`,
+    `event: content_block_stop'"\\ndata: "'${JSON.stringify({
+      type: "content_block_stop",
+      index: 0
+    })}'"\\n\\n"'`,
+    `event: content_block_start'"\\ndata: "'${JSON.stringify({
+      type: "content_block_start",
+      index: 1,
+      content_block: { type: "tool_use", name: toolName }
+    })}'"\\n\\n"'`,
+    `event: content_block_delta'"\\ndata: "'${JSON.stringify({
+      type: "content_block_delta",
+      index: 1,
+      delta: { type: "input_json_delta", partial_json: chunks[0] }
+    })}'"\\n\\n"'`,
+    `event: content_block_delta'"\\ndata: "'${JSON.stringify({
+      type: "content_block_delta",
+      index: 1,
+      delta: { type: "input_json_delta", partial_json: chunks[1] }
+    })}'"\\n\\n"'`,
+    `event: content_block_stop'"\\ndata: "'${JSON.stringify({
+      type: "content_block_stop",
+      index: 1
+    })}'"\\n\\n"'`,
+    `event: message_delta'"\\ndata: "'${JSON.stringify({
+      type: "message_delta",
+      usage: { input_tokens: 1200, output_tokens: 340 }
+    })}'"\\n\\n"'`,
+    "event: message_stop'"\\ndata: {\\\"type\\\":\\\"message_stop\\\"}\\n\\n\"
+  ].join(\"\");
+}
+
+function createMockStreamResult(
+  input: AgentRunInput,
+  toolName: string,
+  startedAtMs: number
+): { stream: ReadableStream<Uint8Array>; completion: Promise<AgentCompletion> } {
+  const payload = buildMockPayload(input);
+  const sseText = buildMockSse(toolName, payload);
+  const stream = createSseStream(sseText);
+
+  const completion = Promise.resolve({
+    payload,
+    usage: { inputTokens: 1200, outputTokens: 340 },
+    durationMs: Math.max(Date.now() - startedAtMs, 0),
+    cost: estimateCostUsd({ inputTokens: 1200, outputTokens: 340 }, getCostRates())
+  });
+
+  return { stream, completion };
+}
+
+export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
+  const toolName = TOOL_BY_REPORT_TYPE[input.type];
+  const agentId = Deno.env.get(AGENT_ENV_BY_REPORT_TYPE[input.type]) ?? \"local-agent\";
+  const agentVersion = Deno.env.get(\"AGENT_VERSION\") ?? \"dev\";
+  const anthropicApiKey = Deno.env.get(\"ANTHROPIC_API_KEY\");
+  const startedAtMs = Date.now();
+
+  if (input.sessionMode === \"stream\") {
+    const streamResult = anthropicApiKey
+      ? await callAnthropicManagedAgentStream(input, toolName, agentId, anthropicApiKey)
+      : createMockStreamResult(input, toolName, startedAtMs);
+
+    return {
+      mode: \"stream\",
+      stream: streamResult.stream,
+      completion: streamResult.completion,
+      toolName,
+      agentId,
+      agentVersion
+    };
+  }
+
+  const payload = anthropicApiKey
+    ? await callAnthropicManagedAgent(input, toolName, agentId, anthropicApiKey)
+    : buildMockPayload(input);
+
+  const usage: AgentUsage = anthropicApiKey
+    ? { inputTokens: null, outputTokens: null }
+    : { inputTokens: 1200, outputTokens: 340 };
+
+  return {
+    mode: \"sync\",
+    completion: Promise.resolve({
+      payload,
+      usage,
+      durationMs: Math.max(Date.now() - startedAtMs, 0),
+      cost: estimateCostUsd(usage, getCostRates())
+    }),
+    toolName,
+    agentId,
+    agentVersion
+  };
+}
+
+export type LegacyAgentRunInput = {
+  reportType: ReportType;
+  companyId: string;
+  sourceDocumentIds: string[];
+  customSources: string[];
+  projectId: string | null;
+};
+
+export type LegacyAgentRunResult = {
+  payload: Record<string, unknown>;
+  toolName: string;
+  agentId: string;
+  agentVersion: string;
+};
+
+export async function runReportAgent(input: LegacyAgentRunInput): Promise<LegacyAgentRunResult> {
+  const run = await runAgent({
+    type: input.reportType,
+    sessionMode: \"sync\",
+    context: {
+      companyId: input.companyId,
+      sourceDocumentIds: input.sourceDocumentIds,
+      customSources: input.customSources,
+      projectId: input.projectId
+    }
+  });
+
+  const completion = await run.completion;
+
+  return {
+    payload: completion.payload,
+    toolName: run.toolName,
+    agentId: run.agentId,
+    agentVersion: run.agentVersion
+  };
+}
+EOF")
+Bash(/bin/bash -lc 'corepack pnpm --dir supabase run test:unit -- functions/_shared/__tests__/agent-orchestrator.test.ts')
+RED/GREEN for the orchestrator is complete. Next I’m editing `reports/index.ts` to add an `earnings_summary` streaming branch (SSE response + completion persistence/audit), while keeping the existing non-earnings JSON flow unchanged.
+Agent idle for 1 minute
+Bash(/bin/bash -lc "cat > /home/agent/workspace/supabase/functions/reports/index.ts <<'EOF'
+import \"jsr:@supabase/functions-js/edge-runtime.d.ts\";
+import { Entitlements } from \"../_shared/entitlements.ts\";
+import { corsHeaders, jsonResponse } from \"../_shared/cors.ts\";
+import { runAgent, runReportAgent, type ReportType } from \"../_shared/agent-orchestrator.ts\";
+import { createSourceIngestor } from \"../_shared/source-ingestor.ts\";
+import { createServiceClient, createUserClient } from \"../_shared/supabase.ts\";
+
+type CreateReportBody = {
+  company_id?: string;
+  report_type?: ReportType;
+  project_id?: string | null;
+  custom_sources?: string[];
+};
+
+function normalizeCustomSources(value: unknown): string[] {
+  if ("'!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function isReportType(value: unknown): value is ReportType {
+  return value === "earnings_summary" || value === "due_diligence" || value === "lead_intel";
+}
+
+function streamHeaders(): Headers {
+  return new Headers({
+    ...corsHeaders,
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "X-Accel-Buffering": "no"
+  });
+}
+
+function trackBackground(promise: Promise<unknown>) {
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void } })
+    .EdgeRuntime;
+
+  runtime?.waitUntil?.(promise);
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse(405, { error: "Method not allowed" });
+  }
+
+  const authorization = request.headers.get("Authorization");
+  if (!authorization) {
+    return jsonResponse(401, { error: "Missing Authorization header" });
+  }
+
+  let body: CreateReportBody;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(400, { error: "Invalid JSON body" });
+  }
+
+  if (!body.company_id || !isReportType(body.report_type)) {
+    return jsonResponse(400, { error: "company_id and report_type are required" });
+  }
+
+  const customSources = normalizeCustomSources(body.custom_sources);
+  const projectId = body.project_id ?? null;
+  const bypassCache = projectId !== null;
+
+  const userClient = createUserClient(authorization);
+  const serviceClient = createServiceClient();
+
+  const {
+    data: { user },
+    error: userError
+  } = await userClient.auth.getUser();
+
+  if (userError || !user) {
+    return jsonResponse(401, { error: "Invalid user session" });
+  }
+
+  const { data: activeOrgId, error: activeOrgError } = await userClient.rpc("current_active_org");
+  if (activeOrgError || !activeOrgId) {
+    return jsonResponse(403, { error: "No active organization context" });
+  }
+
+  const entitlements = new Entitlements(userClient);
+  const entitlementAction = `reports.${body.report_type}` as const;
+  const allowed = await entitlements.can(activeOrgId, entitlementAction);
+  if (!allowed) {
+    const remaining = await entitlements.quotaRemaining(activeOrgId, entitlementAction);
+    return jsonResponse(429, {
+      error: {
+        code: "QUOTA_EXCEEDED",
+        message: `Quota exceeded for ${body.report_type}. Upgrade your plan to continue.`,
+        action: entitlementAction,
+        remaining
+      }
+    });
+  }
+
+  if (projectId) {
+    const { data: projectRow, error: projectError } = await userClient
+      .from("projects")
+      .select("id, org_id")
+      .eq("id", projectId)
+      .single();
+
+    if (projectError || !projectRow || projectRow.org_id !== activeOrgId) {
+      return jsonResponse(403, { error: "project_id must belong to the active organization" });
+    }
+  }
+
+  const { data: companyRow, error: companyError } = await userClient
+    .from("companies")
+    .select("id")
+    .eq("id", body.company_id)
+    .single();
+
+  if (companyError || !companyRow) {
+    return jsonResponse(404, { error: "Company not found" });
+  }
+
+  const sourceIngestor = createSourceIngestor(serviceClient);
+  const ingestedSources = await sourceIngestor.fetchSources({
+    company_id: companyRow.id,
+    kind: "earnings_transcript",
+    source_urls: customSources,
+    audit: {
+      org_id: activeOrgId,
+      actor_id: user.id,
+      project_id: projectId,
+      report_type: body.report_type
+    }
+  });
+
+  const sourceDocumentIds = ingestedSources.map((document) => document.id);
+
+  const sortedSourceIds = sourceDocumentIds.slice().sort();
+  const sourceDocSetHash = await sha256Hex(JSON.stringify(sortedSourceIds));
+
+  const { error: usageError } = await serviceClient.from("usage_events").insert({
+    org_id: activeOrgId,
+    user_id: user.id,
+    action: entitlementAction,
+    metadata: {
+      report_type: body.report_type,
+      company_id: body.company_id,
+      project_id: projectId,
+      cache_bypass: bypassCache
+    }
+  });
+
+  if (usageError) {
+    return jsonResponse(500, { error: usageError.message });
+  }
+
+  if (body.report_type === "earnings_summary") {
+    const agentRun = await runAgent({
+      type: "earnings_summary",
+      sessionMode: "stream",
+      context: {
+        companyId: companyRow.id,
+        sourceDocumentIds: sortedSourceIds,
+        customSources,
+        projectId
+      }
+    });
+
+    if (agentRun.mode !== "stream") {
+      return jsonResponse(500, { error: "Streaming mode expected for earnings_summary" });
+    }
+
+    const persistOnCompletion = agentRun.completion
+      .then(async (completion) => {
+        const { data: createdReport, error: reportError } = await serviceClient
+          .from("reports")
+          .insert({
+            org_id: activeOrgId,
+            project_id: projectId,
+            company_id: companyRow.id,
+            report_type: body.report_type,
+            composition_id: null,
+            source_doc_set_hash: sourceDocSetHash,
+            agent_version: agentRun.agentVersion,
+            status: "succeeded",
+            payload: completion.payload,
+            created_by: user.id
+          })
+          .select("id")
+          .single();
+
+        if (reportError || !createdReport) {
+          throw new Error(reportError?.message ?? "Failed to create streaming report");
+        }
+
+        await serviceClient.from("audit_events").insert({
+          org_id: activeOrgId,
+          project_id: projectId,
+          actor_id: user.id,
+          kind: "agent_run",
+          payload: {
+            report_id: createdReport.id,
+            report_type: body.report_type,
+            tool_name: agentRun.toolName,
+            agent_id: agentRun.agentId,
+            agent_version: agentRun.agentVersion,
+            source_doc_set_hash: sourceDocSetHash,
+            cache_bypass: bypassCache,
+            tokens: {
+              input: completion.usage.inputTokens,
+              output: completion.usage.outputTokens
+            },
+            duration_ms: completion.durationMs,
+            cost: completion.cost
+          }
+        });
+      })
+      .catch(async (error) => {
+        await serviceClient.from("audit_events").insert({
+          org_id: activeOrgId,
+          project_id: projectId,
+          actor_id: user.id,
+          kind: "agent_run_failed",
+          payload: {
+            report_type: body.report_type,
+            tool_name: agentRun.toolName,
+            agent_id: agentRun.agentId,
+            agent_version: agentRun.agentVersion,
+            source_doc_set_hash: sourceDocSetHash,
+            message: error instanceof Error ? error.message : "unknown streaming failure"
+          }
+        });
+      });
+
+    trackBackground(persistOnCompletion);
+
+    return new Response(agentRun.stream, {
+      status: 200,
+      headers: streamHeaders()
+    });
+  }
+
+  let payload: Record<string, unknown> | null = null;
+  let compositionId: string | null = null;
+  let agentVersion = Deno.env.get("AGENT_VERSION") ?? "dev";
+
+  if (!bypassCache) {
+    const { data: existingComposition } = await serviceClient
+      .from("compositions")
+      .select("id, payload")
+      .eq("company_id", companyRow.id)
+      .eq("report_type", body.report_type)
+      .eq("source_doc_set_hash", sourceDocSetHash)
+      .eq("agent_version", agentVersion)
+      .gt("expires_at", new Date().toISOString())
+      .maybeSingle();
+
+    if (existingComposition) {
+      payload = existingComposition.payload as Record<string, unknown>;
+      compositionId = existingComposition.id;
+    }
+  }
+
+  if (!payload) {
+    const agentRun = await runReportAgent({
+      reportType: body.report_type,
+      companyId: companyRow.id,
+      sourceDocumentIds: sortedSourceIds,
+      customSources,
+      projectId
+    });
+
+    payload = agentRun.payload;
+    agentVersion = agentRun.agentVersion;
+
+    await serviceClient.from("audit_events").insert({
+      org_id: activeOrgId,
+      project_id: projectId,
+      actor_id: user.id,
+      kind: "agent_run",
+      payload: {
+        report_type: body.report_type,
+        tool_name: agentRun.toolName,
+        agent_id: agentRun.agentId,
+        agent_version: agentRun.agentVersion,
+        source_doc_set_hash: sourceDocSetHash,
+        cache_bypass: bypassCache
+      }
+    });
+
+    if (!bypassCache) {
+      const { data: insertedComposition, error: compositionError } = await serviceClient
+        .from("compositions")
+        .upsert(
+          {
+            company_id: companyRow.id,
+            report_type: body.report_type,
+            source_doc_set_hash: sourceDocSetHash,
+            agent_version: agentRun.agentVersion,
+            payload,
+            expires_at: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString()
+          },
+          { onConflict: "company_id,report_type,source_doc_set_hash,agent_version" }
+        )
+        .select("id")
+        .single();
+
+      if (compositionError || !insertedComposition) {
+        return jsonResponse(500, {
+          error: compositionError?.message ?? "Failed to persist composition"
+        });
+      }
+
+      compositionId = insertedComposition.id;
+    }
+  }
+
+  const { data: createdReport, error: reportError } = await serviceClient
+    .from("reports")
+    .insert({
+      org_id: activeOrgId,
+      project_id: projectId,
+      company_id: companyRow.id,
+      report_type: body.report_type,
+      composition_id: compositionId,
+      source_doc_set_hash: sourceDocSetHash,
+      agent_version: agentVersion,
+      status: "succeeded",
+      payload,
+      created_by: user.id
+    })
+    .select("id, org_id, project_id, company_id, report_type, composition_id, status, created_at")
+    .single();
+
+  if (reportError || !createdReport) {
+    return jsonResponse(500, { error: reportError?.message ?? "Failed to create report" });
+  }
+
+  return jsonResponse(201, {
+    report: createdReport,
+    cache: {
+      bypassed: bypassCache,
+      composition_id: compositionId
+    }
+  });
+});
+EOF')
+Agent idle for 1 minute
+Bash(/bin/bash -lc "cat > /home/agent/workspace/web/app/report-panel.tsx <<'EOF'
+\"use client\";
+
+import { useEffect, useMemo, useState } from \"react\";
+import { getSupabaseBrowserClient } from \"../lib/supabase/browser\";
+import { getSupabaseEnv } from \"../lib/supabase/env\";
+
+type MePayload = {
+  active_org_id: string;
+  tier: string;
+  quotas_remaining: {
+    \"reports.earnings_summary\": number;
+    \"reports.due_diligence\": number;
+    \"reports.lead_intel\": number;
+  };
+  feature_flags: Record<string, boolean>;
+};
+
+type StreamUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+};
+
+export function ReportPanel() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const { supabaseUrl, supabaseAnonKey } = useMemo(() => getSupabaseEnv(), []);
+  const [me, setMe] = useState<MePayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [companyId, setCompanyId] = useState(\"\");
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [trail, setTrail] = useState<string[]>([]);
+  const [finalPayload, setFinalPayload] = useState<Record<string, unknown> | null>(null);
+  const [latestReportId, setLatestReportId] = useState<string | null>(null);
+  const [usage, setUsage] = useState<StreamUsage>({ inputTokens: null, outputTokens: null });
+
+  useEffect(() => {
+    void loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadMe() {
+    setLoading(true);
+    setError(null);
+
+    const { data, error: invokeError } = await supabase.functions.invoke(\"me\", {
+      method: \"GET\"
+    });
+
+    if (invokeError) {
+      setLoading(false);
+      setError(invokeError.message);
+      return;
+    }
+
+    setMe(data as MePayload);
+    setLoading(false);
+  }
+
+  async function runEarningsSummary() {
+    const trimmedCompanyId = companyId.trim();
+    if ("'!trimmedCompanyId) {
+      setError("Enter a company UUID first.");
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setStatus("Starting earnings summary stream...");
+    setTrail([]);
+    setFinalPayload(null);
+    setLatestReportId(null);
+    setUsage({ inputTokens: null, outputTokens: null });
+
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      setBusy(false);
+      setError("No active session token available.");
+      return;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/reports`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        apikey: supabaseAnonKey
+      },
+      body: JSON.stringify({
+        company_id: trimmedCompanyId,
+        report_type: "earnings_summary"
+      })
+    });
+
+    if (!response.ok) {
+      const message = await parseFetchError(response);
+      setError(message);
+      setBusy(false);
+      await loadMe();
+      return;
+    }
+
+    if (!response.body) {
+      setError("Streaming response body was empty.");
+      setBusy(false);
+      await loadMe();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    let buffer = "";
+    let activeToolIndex: number | null = null;
+    let partialToolInput = "";
+    let parsedFinalPayload: Record<string, unknown> | null = null;
+
+    const appendTrail = (line: string) => {
+      setTrail((current) => [...current, line]);
+    };
+
+    const handleBlock = (rawBlock: string) => {
+      const lines = rawBlock.split("'"\\n\");
+      let eventName = \"message\";
+      const dataLines: string[] = [];
+
+      for (const line of lines) {
+        if (line.startsWith(\"event:\")) {
+          eventName = line.slice(\"event:\".length).trim();
+          continue;
+        }
+
+        if (line.startsWith(\"data:\")) {
+          dataLines.push(line.slice(\"data:\".length).trimStart());
+        }
+      }
+
+      const data = dataLines.join(\"\\n\");
+      if ("'!data || data === "[DONE]") {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(data) as {
+          type?: string;
+          index?: number;
+          delta?: { type?: string; text?: string; partial_json?: string };
+          usage?: { input_tokens?: number; output_tokens?: number };
+          message?: { usage?: { input_tokens?: number; output_tokens?: number } };
+          content_block?: { type?: string; name?: string; input?: Record<string, unknown> };
+        };
+
+        const textDelta = parsed.delta?.type === "text_delta" ? parsed.delta.text : null;
+        if (typeof textDelta === "string" && textDelta.trim().length > 0) {
+          appendTrail(textDelta);
+        }
+
+        if (parsed.type === "content_block_start") {
+          if (
+            parsed.content_block?.type === "tool_use" &&
+            parsed.content_block?.name === "submit_earnings_summary"
+          ) {
+            activeToolIndex = typeof parsed.index === "number" ? parsed.index : null;
+            partialToolInput = "";
+            appendTrail("[tool] assembling submit_earnings_summary payload");
+
+            if (parsed.content_block.input && typeof parsed.content_block.input === "object") {
+              parsedFinalPayload = parsed.content_block.input;
+            }
+          }
+        }
+
+        if (
+          parsed.type === "content_block_delta" &&
+          activeToolIndex !== null &&
+          parsed.index === activeToolIndex &&
+          parsed.delta?.type === "input_json_delta"
+        ) {
+          partialToolInput += parsed.delta.partial_json ?? "";
+        }
+
+        if (parsed.type === "content_block_stop" && activeToolIndex !== null && parsed.index === activeToolIndex) {
+          try {
+            const candidate = JSON.parse(partialToolInput);
+            if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+              parsedFinalPayload = candidate as Record<string, unknown>;
+            }
+          } catch {
+            // ignore malformed partial JSON and rely on DB payload lookup after stream end
+          }
+        }
+
+        const usagePayload = parsed.usage ?? parsed.message?.usage;
+        if (usagePayload) {
+          setUsage((current) => ({
+            inputTokens:
+              typeof usagePayload.input_tokens === "number"
+                ? usagePayload.input_tokens
+                : current.inputTokens,
+            outputTokens:
+              typeof usagePayload.output_tokens === "number"
+                ? usagePayload.output_tokens
+                : current.outputTokens
+          }));
+        }
+      } catch {
+        appendTrail(`[${eventName}] ${data}`);
+      }
+    };
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+
+          while (true) {
+            const delimiterIndex = buffer.indexOf("'"\\n\\n\");
+            if (delimiterIndex < 0) {
+              break;
+            }
+
+            const block = buffer.slice(0, delimiterIndex);
+            buffer = buffer.slice(delimiterIndex + 2);
+            handleBlock(block);
+          }
+        }
+      }
+
+      buffer += decoder.decode();
+      if (buffer.trim().length > 0) {
+        handleBlock(buffer);
+      }
+    } catch (streamError) {
+      setError(streamError instanceof Error ? streamError.message : \"Stream interrupted.\");
+      setBusy(false);
+      await loadMe();
+      return;
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (parsedFinalPayload) {
+      setFinalPayload(parsedFinalPayload);
+    }
+
+    const { data: reportRow } = await supabase
+      .from(\"reports\")
+      .select(\"id, payload\")
+      .eq(\"company_id\", trimmedCompanyId)
+      .eq(\"report_type\", \"earnings_summary\")
+      .eq(\"status\", \"succeeded\")
+      .order(\"created_at\", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (reportRow?.id) {
+      setLatestReportId(reportRow.id);
+      if ("'!parsedFinalPayload && reportRow.payload && typeof reportRow.payload === "object") {
+        setFinalPayload(reportRow.payload as Record<string, unknown>);
+      }
+      setStatus(`Stream finished. Report persisted: ${reportRow.id}`);
+    } else {
+      setStatus("Stream finished. Waiting for persisted report row...");
+    }
+
+    setBusy(false);
+    await loadMe();
+  }
+
+  const remaining = me?.quotas_remaining["reports.earnings_summary"] ?? 0;
+  const showUpsell = !loading && remaining <= 0;
+
+  return (
+    <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+      <h2 className="text-2xl font-semibold">Entitlements</h2>
+
+      {loading ? <p className="text-sm text-slate-300">Loading entitlements…</p> : null}
+
+      {me ? (
+        <div className="space-y-2 text-sm text-slate-300">
+          <p>Tier: {me.tier}</p>
+          <p>Earnings summaries remaining: {remaining}</p>
+          <p>Due diligence enabled: {String(me.feature_flags.due_diligence_enabled ?? false)}</p>
+          <p>Lead intel enabled: {String(me.feature_flags.lead_intel_enabled ?? false)}</p>
+        </div>
+      ) : null}
+
+      <div className="space-y-2">
+        <label className="block text-sm text-slate-300" htmlFor="earnings-company-id">
+          Company UUID
+        </label>
+        <input
+          className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none ring-slate-400 focus:ring-2"
+          disabled={busy || loading}
+          id="earnings-company-id"
+          onChange={(event) => setCompanyId(event.target.value)}
+          placeholder="Paste listed company UUID"
+          type="text"
+          value={companyId}
+        />
+      </div>
+
+      <button
+        className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
+        disabled={busy || loading}
+        onClick={runEarningsSummary}
+        type="button"
+      >
+        Run earnings summary (stream)
+      </button>
+
+      {showUpsell ? (
+        <p className="rounded-md border border-amber-400/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          Free-tier quota exhausted. Upgrade to continue running earnings summaries.
+        </p>
+      ) : null}
+
+      {status ? <p className="text-sm text-emerald-400">{status}</p> : null}
+      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+
+      {trail.length > 0 ? (
+        <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Streaming trail</p>
+          <pre className="max-h-60 overflow-auto whitespace-pre-wrap text-sm text-slate-200">
+            {trail.join("")}
+          </pre>
+        </div>
+      ) : null}
+
+      {latestReportId ? (
+        <p className="text-sm text-slate-300">Latest persisted report: {latestReportId}</p>
+      ) : null}
+
+      {usage.inputTokens !== null || usage.outputTokens !== null ? (
+        <p className="text-sm text-slate-300">
+          Tokens: in {usage.inputTokens ?? "-"} · out {usage.outputTokens ?? "-"}
+        </p>
+      ) : null}
+
+      {finalPayload ? (
+        <div className="space-y-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
+          <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Final payload</p>
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-xs text-slate-200">
+            {JSON.stringify(finalPayload, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+async function parseFetchError(response: Response): Promise<string> {
+  try {
+    const payload = (await response.json()) as { error?: { message?: string } | string };
+    if (typeof payload.error === "string") {
+      return payload.error;
+    }
+
+    if (payload.error && typeof payload.error === "object" && payload.error.message) {
+      return payload.error.message;
+    }
+  } catch {
+    return `Request failed with status ${response.status}.`;
+  }
+
+  return `Request failed with status ${response.status}.`;
+}
+EOF')
+The reports edge function and web panel are now updated for earnings-summary SSE streaming plus completion persistence/audit. I’m running full typecheck and tests next to catch integration issues before committing.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc 'git status --short')
+I found one robustness fix before commit: normalizing `\r\n` in the client SSE parser so event splitting works across all stream newline variants. I’m applying that small patch now.
+Bash(/bin/bash -lc 'corepack pnpm --dir supabase run test:unit')
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc "git diff -- supabase/functions/_shared/agent-orchestrator.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "git diff -- supabase/functions/reports/index.ts | sed -n '1,320p'")
+Bash(/bin/bash -lc "git diff -- supabase/functions/_shared/__tests__/agent-orchestrator.test.ts | sed -n '1,260p'")
+Bash(/bin/bash -lc "git diff -- web/app/report-panel.tsx | sed -n '1,320p'")
+Bash(/bin/bash -lc 'git status --short --branch')
+Implementation and verification are complete (with DB-test environment limitation noted). I’m staging these issue-27 files and creating the required structured commit message now.
+Bash(/bin/bash -lc "git add supabase/functions/_shared/agent-orchestrator.ts supabase/functions/_shared/__tests__/agent-orchestrator.test.ts supabase/functions/reports/index.ts web/app/report-panel.tsx && git commit -m \"RALPH: complete issue #27 Earnings Reviewer streaming e2e (PRD AD-5/AD-6/AD-7)\" -m \"Task completed + PRD reference:\\n- Implemented issue #27 retail streaming tracer-bullet aligned to docs/PRD.md AD-5 (streaming path), AD-6 (final tool-call output), and AD-7 (Earnings Reviewer agent routing).\\n\\nKey decisions made:\\n- Added Agent Orchestrator runAgent({ type, context, sessionMode }) with streaming mode, Anthropic managed-agents beta header, SSE passthrough, and final tool payload extraction from tool_use deltas.\\n- Kept non-earnings report flow intact via legacy runReportAgent wrapper to avoid changing adjacent features.\\n- Updated reports Edge Function to return text/event-stream for earnings_summary and persist reports.payload=status=succeeded only after stream completion.\\n- Recorded audit_events for streaming runs with agent_id, tokens, duration_ms, and cost; added failure audit branch for stream-completion persistence errors.\\n- Updated Next.js ReportPanel to consume SSE directly, render real-time thinking trail, and surface final payload + persisted report id.\\n\\nFiles changed:\\n- supabase/functions/_shared/agent-orchestrator.ts\\n- supabase/functions/_shared/__tests__/agent-orchestrator.test.ts\\n- supabase/functions/reports/index.ts\\n- web/app/report-panel.tsx\\n\\nBlockers or notes for next iteration:\\n- npm run typecheck passes.\\n- npm run test: unit tests pass; DB tests fail in this environment because local Supabase/Postgres is not running at 127.0.0.1:54322.\"")
+Bash(/bin/bash -lc 'git status --short --branch')
+Implemented issue #27 on branch `sandcastle/issue-27-earnings-reviewer-streaming-end-to-end-retail-layer-3-report` with commit `dc79bba`.
+
+Changes made:
+- Added streaming-capable Agent Orchestrator API `runAgent({ type, context, sessionMode: 'stream' })` with Anthropic `managed-agents-2026-04-01` beta header, SSE handling, final tool payload extraction, and usage/cost parsing in [agent-orchestrator.ts](/home/agent/workspace/supabase/functions/_shared/agent-orchestrator.ts).
+- Added RED/GREEN unit coverage for SSE tool payload + usage/cost extraction in [agent-orchestrator.test.ts](/home/agent/workspace/supabase/functions/_shared/__tests__/agent-orchestrator.test.ts).
+- Updated `POST /functions/v1/reports` so `earnings_summary` returns `text/event-stream`, pipes Anthropic events, and on stream completion persists final tool-call payload to `reports.payload` with `status='succeeded'`, plus `audit_events` with `agent_id`, tokens, duration, and cost in [reports/index.ts](/home/agent/workspace/supabase/functions/reports/index.ts).
+- Updated Next.js retail panel to consume SSE directly and render real-time thinking trail + final payload/report visibility in [report-panel.tsx](/home/agent/workspace/web/app/report-panel.tsx).
+
+Validation:
+- `npm run typecheck` passed.
+- `npm run test` ran unit tests successfully, but DB tests failed due local Postgres/Supabase unavailable at `127.0.0.1:54322` in this environment.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).

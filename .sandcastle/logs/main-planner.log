@@ -53,3 +53,179 @@ Collecting commits
 Collecting commits done (0.0s)
 Reached max iterations (1).
 Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-09T21:21:18.828Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.5s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~2967 tokens
+Expanding shell expressions done (1.2s)
+Agent started
+I’m mapping dependencies across the listed open issues, then I’ll identify which ones are unblocked by other currently open issues and output only those with `sandcastle/issue-{id}-{slug}` branches. I’ll quickly check the repo’s agent docs for any dependency/priority conventions before finalizing.
+Bash(/bin/bash -lc "rg --files docs/agents && echo '---' && sed -n '1,220p' docs/agents/issue-tracker.md && echo '---' && sed -n '1,220p' docs/agents/triage-labels.md && echo '---' && sed -n '1,220p' docs/agents/domain.md")
+`rg` isn’t available in this environment, so I’m using `find`/`sed` to read the same docs and confirm conventions before I finalize the dependency graph.
+Bash(/bin/bash -lc "find docs/agents -maxdepth 2 -type f | sort && echo '---' && sed -n '1,220p' docs/agents/issue-tracker.md && echo '---' && sed -n '1,220p' docs/agents/triage-labels.md && echo '---' && sed -n '1,220p' docs/agents/domain.md")
+I verified the tracker conventions; next I’m checking `CONTEXT.md` and relevant ADRs to ensure dependency inferences align with the repo’s architecture, then I’ll produce the unblocked set.
+Bash(/bin/bash -lc "ls -1 && echo '---' && sed -n '1,260p' CONTEXT.md && echo '---ADR LIST---' && find docs/adr -maxdepth 2 -type f | sort")
+I confirmed there’s no root `CONTEXT.md`; I’m now reading `docs/adr` directly for architecture contracts that affect issue ordering.
+Bash(/bin/bash -lc "find docs/adr -maxdepth 2 -type f | sort && echo '---' && for f in "'$(find docs/adr -maxdepth 2 -type f | sort); do echo "### $f"; sed -n '"'1,220p' \""'$f"; echo '"'---'; done")
+<plan>
+{"issues":[{"id":"23","title":"Canonical companies + securities schema + nightly NSE/BSE master-CSV seeder","branch":"sandcastle/issue-23-canonical-companies-securities-schema-nightly-nse-bse-master-csv-seeder"},{"id":"34","title":"White-label PDF export with project to org to platform fallback chain","branch":"sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T05:07:14.889Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~2967 tokens
+Expanding shell expressions done (1.1s)
+Agent started
+I’m mapping dependencies across the listed open issues first, then I’ll return only the currently unblocked candidates with branch names in the required JSON format.
+Bash(/bin/bash -lc 'ls -la /home/agent/workspace')
+Bash(/bin/bash -lc 'rg --files /home/agent/workspace/docs | head -n 50')
+I checked the repo layout; next I’m scanning domain docs to validate whether there are implicit cross-issue dependencies beyond the explicit “Blocked by” links.
+Bash(/bin/bash -lc 'find /home/agent/workspace/docs -maxdepth 3 -type f | sort')
+Bash(/bin/bash -lc "sed -n '1,220p' /home/agent/workspace/CONTEXT.md")
+Bash(/bin/bash -lc "sed -n '1,260p' /home/agent/workspace/docs/PRD.md")
+Bash(/bin/bash -lc "sed -n '1,260p' /home/agent/workspace/docs/agents/domain.md")
+Bash(/bin/bash -lc "sed -n '1,260p' /home/agent/workspace/docs/agents/issue-tracker.md")
+Bash(/bin/bash -lc "sed -n '1,260p' /home/agent/workspace/docs/agents/triage-labels.md")
+I found the explicit dependency chain and now I’m validating whether issues like PDF export and audit UI have any hidden blockers among currently open tickets.
+Bash(/bin/bash -lc 'find /home/agent/workspace/docs/adr -maxdepth 2 -type f 2>/dev/null | sort')
+I confirmed the architecture docs and now I’m cross-checking the issue chain against the actual GitHub open-state to avoid treating closed dependencies as blockers.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue list --state open --json number,title,labels --limit 200')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 33 --json number,title,state,labels,body')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 22 --json number,state,title')
+I verified issue state; next I’m doing a final pass on the two likely-unblocked candidates (`#23`, `#34`) to ensure no hidden dependency on other still-open tickets in your provided set.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 23 --json number,title,state,body,comments,labels')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 34 --json number,title,state,body,comments,labels')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 35 --json number,title,state,body,comments,labels')
+<plan>
+{"issues":[{"id":"23","title":"Canonical companies + securities schema + nightly NSE/BSE master-CSV seeder","branch":"sandcastle/issue-23-canonical-companies-securities-nightly-master-csv-seeder"},{"id":"34","title":"White-label PDF export with project to org to platform fallback chain","branch":"sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T05:26:47.628Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.7s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~2409 tokens
+Expanding shell expressions done (1.1s)
+Agent started
+I’ll map dependencies across the open issues, then identify which ones are unblocked relative to the current open set and generate branch names in the required format. I’m starting by checking repo docs for any sequencing or module-ownership guidance that could change the dependency graph.
+Bash(/bin/bash -lc 'rg --files docs/agents')
+Bash(/bin/bash -lc 'ls -la')
+Bash(/bin/bash -lc "sed -n '1,220p' docs/agents/triage-labels.md")
+Bash(/bin/bash -lc "sed -n '1,220p' docs/agents/issue-tracker.md")
+Bash(/bin/bash -lc "sed -n '1,220p' docs/agents/domain.md")
+I’ve confirmed tracker conventions; next I’m pulling domain context/ADRs to validate whether any additional cross-issue API dependencies or merge-conflict hotspots exist beyond the explicit “Blocked by” lists.
+Bash(/bin/bash -lc 'ls -la /home/agent/workspace/docs/adr')
+Bash(/bin/bash -lc "sed -n '1,260p' /home/agent/workspace/CONTEXT.md")
+Bash(/bin/bash -lc "find /home/agent/workspace/docs/adr -maxdepth 1 -type f -name '*.md' | sort")
+I’m moving to repository structure and architecture docs now to infer likely module overlap between issues, so the dependency graph includes both explicit blockers and practical integration/merge-order constraints.
+Bash(/bin/bash -lc 'find docs -maxdepth 3 -type f | sort')
+Bash(/bin/bash -lc "sed -n '1,260p' README.md")
+Bash(/bin/bash -lc 'find web -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc 'find mobile -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc 'find supabase -maxdepth 4 -type f | sort')
+I found the current code layout and open issue-related migrations. Next I’m inspecting the key existing modules (`reports`, shared agent helpers, and web/mobile entrypoints) to pinpoint where open issues will converge on the same files/API shapes.
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' web/app/report-panel.tsx")
+Bash(/bin/bash -lc "sed -n '1,260p' web/app/page.tsx")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/agent-orchestrator.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' mobile/App.tsx")
+Bash(/bin/bash -lc "sed -n '261,520p' supabase/functions/reports/index.ts")
+I’ve inspected the current implementation hotspots and will now read the PRD issue sequencing to confirm whether any implied dependencies exist beyond explicit blockers (especially around `reports` orchestration and UI slices).
+Bash(/bin/bash -lc "sed -n '1,320p' docs/PRD.md")
+I now have enough architecture context; I’m checking the repo’s issue artifacts to confirm if any transitive or overlap-based blockers should be added (for example, `36` implicitly needing APIs from `24` and `27`).
+Bash(/bin/bash -lc 'find .sandcastle -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc "find docs -maxdepth 6 -type f | grep -E 'issue|dependency|decomposition|roadmap|tracker|plan'")
+Bash(/bin/bash -lc "grep -R \"#24\\|#25\\|#27\\|#28\\|#29\\|#30\\|#35\\|#36\" -n docs supabase web mobile 2>/dev/null | head -n 200")
+The previous search hit `node_modules`; I’m re-running focused scans (excluding generated deps) and checking planner logs for prior dependency mapping so we can keep this graph precise.
+Bash(/bin/bash -lc "grep -R --exclude-dir=node_modules --exclude-dir=.git --exclude='*.log' -n \"#24\\|#25\\|#27\\|#28\\|#29\\|#30\\|#35\\|#36\" docs supabase web mobile .sandcastle 2>/dev/null | head -n 200")
+Bash(/bin/bash -lc "grep -n \"issue-24\\|issue-25\\|issue-27\\|issue-28\\|issue-29\\|issue-30\\|issue-35\\|issue-36\\|Blocked by\" .sandcastle/logs/main-merger.log | head -n 240")
+Bash(/bin/bash -lc "grep -n \"issue-24\\|issue-25\\|issue-27\\|issue-28\\|issue-29\\|issue-30\\|issue-35\\|issue-36\\|Blocked by\" .sandcastle/logs/main-planner.log | head -n 240")
+<plan>
+{"issues":[{"id":"24","title":"Company Resolver module + Vitest fixture suite","branch":"sandcastle/issue-24-company-resolver-module-vitest-fixture-suite"},{"id":"25","title":"Source Ingestor + Document Cache for BSE/NSE filings + earnings transcripts","branch":"sandcastle/issue-25-source-ingestor-document-cache-for-bse-nse-filings-earnings-transcripts"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T05:38:48.160Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (1.3s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~2157 tokens
+Expanding shell expressions done (1.0s)
+Agent started
+<plan>
+{"issues":[{"id":"25","title":"Source Ingestor + Document Cache for BSE/NSE filings + earnings transcripts","branch":"sandcastle/issue-25-source-ingestor-document-cache-bse-nse-filings-earnings-transcripts"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.
+
+--- Run started: 2026-05-10T05:48:19.536Z ---
+Sandcastle Run
+  Agent: planner
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Expanding shell expressions
+  gh issue list --state open --label ready-for-agent --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]' → ~1874 tokens
+Expanding shell expressions done (1.0s)
+Agent started
+<plan>
+{"issues":[{"id":"27","title":"Earnings Reviewer streaming end-to-end (retail Layer 3 report)","branch":"sandcastle/issue-27-earnings-reviewer-streaming-end-to-end-retail-layer-3-report"}]}
+</plan>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Reached max iterations (1).
+Run complete: reached 1 iteration(s) without completion signal.

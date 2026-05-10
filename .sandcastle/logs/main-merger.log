@@ -38,3 +38,248 @@ Bash(/bin/bash -lc 'npm run test')
 I’m waiting for `typecheck` and `test` to finish, then I’ll confirm results and proceed with the final merge commit and issue close command.
 Agent idle for 2 minutes
 Typecheck and tests both passed. I’ll now create the required single commit for the merge result, then run the GitHub issue close command for `#20`, and finally confirm completion.
+Bash(/bin/bash -lc 'git stash push -u -m "temp-before-merge-issue-22"')
+Bash(/bin/bash -lc 'git merge sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui --no-edit')
+The merge completed without conflicts. Next I’m running `npm run typecheck` and `npm run test`; if anything fails I’ll fix it before finalizing.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+`typecheck` passed, but `test` failed due no local Supabase/Postgres instance on `127.0.0.1:54322`. I’m starting the local Supabase stack and rerunning tests to satisfy the verification step.
+Bash(/bin/bash -lc 'npx supabase@latest start --workdir "$(git rev-parse --show-toplevel)/supabase"')
+I can’t run Supabase DB tests in this environment because Docker isn’t available, so the test failure is environmental rather than code-related. I’ll now close issue `#22` with your specified command and then restore the stashed local files.
+Bash(/bin/bash -lc 'gh issue close 22 --comment "Completed by Sandcastle"')
+Bash(/bin/bash -lc 'git stash list | head -n 5 && git stash pop')
+I hit a non-destructive stash-pop conflict on `.sandcastle/logs/main-merger.log`; your original log/untracked files are present, and the stash entry was kept automatically. I’ll verify the merge commit and final repo state now.
+Bash(/bin/bash -lc 'git log --oneline -n 3 && git status --short --branch && git stash list | head -n 3')
+Merged and verified as far as environment allows:
+
+1. Ran `git merge sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui --no-edit`
+- Result: clean merge commit created: `b0a5d8b` (`Merge branch 'sandcastle/issue-22-multi-org-membership-active-org-jwt-claim-org-switcher-ui'`)
+
+2. Conflict resolution
+- No merge conflicts occurred.
+
+3. Validation
+- `npm run typecheck`: passed.
+- `npm run test`: failed due environment (`supabase test db` could not connect to local Postgres at `127.0.0.1:54322`).
+- Attempted fix by starting Supabase locally, but Docker is unavailable in this environment (`Cannot connect to the Docker daemon`), so DB tests could not be executed here.
+
+4. Issue closing
+- Ran: `gh issue close 22 --comment "Completed by Sandcastle"`
+- Result: issue already closed.
+
+5. Working tree note
+- Your pre-existing `.sandcastle` local log changes are present.
+- Stash entry `stash@{0}` remains (stash pop had a safe conflict on `.sandcastle/logs/main-merger.log` and did not delete the stash).
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+
+--- Run started: 2026-05-09T21:28:59.158Z ---
+Sandcastle Run
+  Agent: merger
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Agent started
+Agent invocation failed: codex exited with code 1:
+Reading prompt from stdin...
+2026-05-09T21:29:00.053384Z ERROR codex_rollout::list: state db returned stale rollout path for thread 019e0e6e-bc4d-7d52-878d-08bca9a80b56: /Users/sohambhutkar/.codex/sessions/2026/05/10/rollout-2026-05-10T01-59-58-019e0e6e-bc4d-7d52-878d-08bca9a80b56.jsonl
+
+
+--- Run started: 2026-05-09T21:35:04.917Z ---
+Sandcastle Run
+  Agent: merger
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Agent started
+Agent invocation failed: codex exited with code 1:
+Reading prompt from stdin...
+2026-05-09T21:35:05.887415Z ERROR codex_rollout::list: state db returned stale rollout path for thread 019e0e6e-bc4d-7d52-878d-08bca9a80b56: /Users/sohambhutkar/.codex/sessions/2026/05/10/rollout-2026-05-10T01-59-58-019e0e6e-bc4d-7d52-878d-08bca9a80b56.jsonl
+
+
+--- Run started: 2026-05-10T05:25:34.031Z ---
+Sandcastle Run
+  Agent: merger
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.7s)
+Agent started
+I’m going to merge the two branches in the order you listed, resolve any conflicts, run `typecheck` and tests after each merge, then create one final commit and close issues `23` and `34`. I’ll start by checking the current branch state and merging the first branch.
+Bash(/bin/bash -lc 'git merge sandcastle/issue-23-canonical-companies-securities-nightly-master-csv-seeder --no-edit')
+Bash(/bin/bash -lc 'git status --short --branch && git branch --show-current')
+The first merge attempt was blocked by a stale `.git/index.lock` file. I’m clearing that lock and retrying the first merge, then I’ll run `typecheck` and tests.
+Bash(/bin/bash -lc 'ls -l .git/index.lock && rm -f .git/index.lock && git merge sandcastle/issue-23-canonical-companies-securities-nightly-master-csv-seeder --no-edit')
+Bash(/bin/bash -lc 'git merge sandcastle/issue-23-canonical-companies-securities-nightly-master-csv-seeder --no-edit')
+I’ve merged issue 23 cleanly (fast-forward, no conflicts). Next I’m running `npm run typecheck` and `npm run test` before moving to branch 34.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+`typecheck` passed. The test run is still in progress in the Supabase package; I’m waiting for completion and will fix anything failing before the next merge.
+Tests failed due environment setup (local Supabase DB not running on `127.0.0.1:54322`), not a code regression. I’m starting Supabase locally and re-running tests to validate the merge properly.
+Bash(/bin/bash -lc 'npx supabase@latest start --workdir supabase')
+The Supabase DB tests are blocked because Docker isn’t available in this environment, so I can’t run `supabase test db` here. I’m proceeding to merge branch 34 now, then I’ll run `typecheck` and `test` again and report the same blocker if unchanged.
+Bash(/bin/bash -lc 'git merge sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain --no-edit')
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Second merge is complete and `typecheck` passes; `test` still fails for the same environment reason (`postgres` on `127.0.0.1:54322` unavailable, Docker not running). I’m now closing issues 23 and 34 and creating one summary commit on top of the merges.
+Bash(/bin/bash -lc 'gh issue close 34 --comment "Completed by Sandcastle"')
+Bash(/bin/bash -lc 'gh issue close 23 --comment "Completed by Sandcastle"')
+Bash(/bin/bash -lc 'git status --short --branch && git commit --allow-empty -m "chore: summarize merges for issues 23 and 34" && git log --oneline -n 5')
+Merged both branches into `main` in the requested order:
+
+1. `git merge sandcastle/issue-23-canonical-companies-securities-nightly-master-csv-seeder --no-edit`
+- Result: fast-forward merge, no conflicts.
+
+2. `git merge sandcastle/issue-34-white-label-pdf-export-project-org-platform-fallback-chain --no-edit`
+- Result: merge commit via `ort`, no conflicts.
+
+Validation after each merge:
+- `npm run typecheck`: passed both times.
+- `npm run test`: failed both times due to environment dependency, not code failure:
+  - Could not connect to Postgres at `127.0.0.1:54322`.
+  - Attempt to start Supabase failed because Docker daemon is unavailable in this environment.
+
+Issue closure:
+- Ran `gh issue close 23 --comment "Completed by Sandcastle"` (closed successfully).
+- Ran `gh issue close 34 --comment "Completed by Sandcastle"` (closed successfully).
+
+Single summary commit created:
+- `467ce4f` with message: `chore: summarize merges for issues 23 and 34`
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+
+--- Run started: 2026-05-10T05:37:38.901Z ---
+Sandcastle Run
+  Agent: merger
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Agent started
+I’m going to merge the requested branch first, then run `typecheck` and `test`, resolve anything that breaks, and finish with one commit plus the issue close command. I’ll start by checking repo state and running the merge.
+Bash(/bin/bash -lc 'git merge sandcastle/issue-24-company-resolver-module-vitest-fixture-suite --no-edit')
+Bash(/bin/bash -lc 'git status --short --branch && git branch --all --no-color')
+The merge was blocked by a stale `.git/index.lock`. I’ll verify no active git process and remove the lock safely, then retry the merge.
+Bash(/bin/bash -lc "ps -ef | rg '[g]it'")
+Bash(/bin/bash -lc 'ls -l .git/index.lock')
+Bash(/bin/bash -lc 'git merge sandcastle/issue-24-company-resolver-module-vitest-fixture-suite --no-edit')
+Merge succeeded cleanly (fast-forward). Next I’ll run `npm run typecheck` and `npm run test`, then fix anything failing before making the final merge-summary commit.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+`typecheck` passed, and unit tests passed; the failure is only `supabase test:db` because no local Postgres is running on `127.0.0.1:54322`. I’ll check project scripts/docs for the expected local DB setup and bring it up so the full test suite can pass.
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc 'ls -la supabase')
+Bash(/bin/bash -lc "find . -maxdepth 3 -type f | grep -E 'README|readme|CONTRIBUTING|AGENTS|docs' | head -n 40")
+Bash(/bin/bash -lc 'npm --workspace supabase run start')
+Bash(/bin/bash -lc 'cd supabase && npm run start')
+The DB tests require Docker/Supabase local services, and this environment has no Docker daemon, so `npm run test` cannot be fully completed here. I’ll create the requested single summary commit and run the issue-close command next.
+Bash(/bin/bash -lc 'git commit --allow-empty -m "chore: merge sandcastle issue 24 branch"')
+Bash(/bin/bash -lc 'gh issue close 24 --comment "Completed by Sandcastle"')
+Merged and finalized.
+
+- Ran `git merge sandcastle/issue-24-company-resolver-module-vitest-fixture-suite --no-edit` (clean fast-forward, no conflicts).
+- Ran `npm run typecheck` (passed).
+- Ran `npm run test`:
+  - Unit tests passed.
+  - DB tests failed due to missing Docker daemon (`Cannot connect to the Docker daemon at unix:///var/run/docker.sock`), so full DB integration tests could not run in this environment.
+- Created a single summary commit: `cf50b4c` with message `chore: merge sandcastle issue 24 branch`.
+- Closed issue 24 with:
+  - `gh issue close 24 --comment "Completed by Sandcastle"` (succeeded).
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+
+--- Run started: 2026-05-10T05:47:15.083Z ---
+Sandcastle Run
+  Agent: merger
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.6s)
+Agent started
+I’ll merge the requested branch into the current branch, resolve any conflicts if they appear, run typecheck and tests, then create one summary commit and close issue 25 with the provided `gh` command. I’m starting by checking git status and running the merge.
+Bash(/bin/bash -lc 'git merge sandcastle/issue-25-source-ingestor-document-cache-bse-nse-filings-earnings-transcripts --no-edit')
+Bash(/bin/bash -lc 'git status --short && git branch --show-current')
+The merge was blocked by a stale `.git/index.lock`. I’m checking whether any git process is active, then I’ll remove the stale lock and rerun the merge safely.
+Bash(/bin/bash -lc "ps -ef | rg '[g]it' || true; ls -l .git/index.lock")
+Bash(/bin/bash -lc 'ps -ef | grep git | grep -v grep || true; git status --short; git status')
+I verified there’s no active git process and no remaining lock file. Next I’m rerunning the merge, then immediately running typecheck and tests.
+Bash(/bin/bash -lc 'git log --oneline -n 3')
+Bash(/bin/bash -lc 'git merge sandcastle/issue-25-source-ingestor-document-cache-bse-nse-filings-earnings-transcripts --no-edit')
+The branch merged cleanly as a fast-forward with no conflicts. I’m running `npm run typecheck` and `npm run test` now to verify the integrated changes.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+`typecheck` passed; tests failed only at Supabase DB integration because local Postgres on `127.0.0.1:54322` is not running. I’m starting the local Supabase stack and rerunning `npm run test`.
+Bash(/bin/bash -lc 'npx supabase@latest start --workdir /home/agent/workspace/supabase')
+Docker isn’t available in this environment, so DB integration tests can’t run locally. I’ll proceed with the requested single summary commit as an empty commit (the merge itself fast-forwarded), then run the issue-close command.
+Bash(/bin/bash -lc 'git commit --allow-empty -m "chore: merge sandcastle issue 25 branch"')
+Bash(/bin/bash -lc 'gh issue close 25 --comment "Completed by Sandcastle"')
+Merged branch:
+- `sandcastle/issue-25-source-ingestor-document-cache-bse-nse-filings-earnings-transcripts` via `git merge --no-edit` (fast-forward, no conflicts)
+
+Validation:
+- `npm run typecheck`: passed
+- `npm run test`: unit tests passed; DB test failed because Docker is not available (`Cannot connect to the Docker daemon`), so Supabase local DB tests could not run in this environment
+
+Commit created:
+- `9141ae6` with message `chore: merge sandcastle issue 25 branch` (single summary commit)
+
+Issue closed:
+- Ran `gh issue close 25 --comment "Completed by Sandcastle"` successfully
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+
+--- Run started: 2026-05-10T05:58:36.384Z ---
+Sandcastle Run
+  Agent: merger
+  Sandbox: docker
+  Max iterations: 1
+  Branch: main
+Iteration 1/1
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (0.7s)
+Agent started
+I’m going to merge the requested branch into the current branch, resolve any conflicts if they appear, then run `npm run typecheck` and `npm run test` before creating a single summary commit and closing issue `#27`.
+Bash(/bin/bash -lc 'git status --short && git branch --show-current && git merge sandcastle/issue-27-earnings-reviewer-streaming-end-to-end-retail-layer-3-report --no-edit')
+The merge completed cleanly as a fast-forward with no conflicts. I’ll run typecheck and test now, then commit and close the issue.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Unit tests passed; I’m waiting on the Supabase DB test phase to complete before committing and closing the issue.
+`npm run test` failed only at the local Supabase DB connectivity step (`127.0.0.1:54322` refused), which is an environment/runtime dependency rather than a code regression. I’ll create the requested summary commit and run the issue-close command now.

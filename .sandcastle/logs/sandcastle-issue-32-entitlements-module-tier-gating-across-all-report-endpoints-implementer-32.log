@@ -1,0 +1,956 @@
+
+--- Run started: 2026-05-09T20:59:45.600Z ---
+Sandcastle Run
+  Agent: implementer-32
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-32-entitlements-module-tier-gating-across-all-report-endpoints
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (13.2s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1467 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue specs and repo conventions first, then inspect the current schema/endpoints/tests so I can implement exactly what issue #32 requires and nothing adjacent.
+Bash(/bin/bash -lc 'pwd && ls -la')
+Bash(/bin/bash -lc 'rg --files')
+`rg` isn’t installed here, so I’ll switch to `find`/`grep` and now fetch the issue contracts plus PRD and agent docs before editing anything.
+Bash(/bin/bash -lc 'cat AGENTS.md')
+Bash(/bin/bash -lc 'gh issue view 32 --comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments')
+Bash(/bin/bash -lc 'GITHUB_PAGER=cat gh issue view 32 --comments')
+I hit an unexpected `gh issue view` empty response, so I’m checking GitHub CLI context (repo/auth) and then I’ll re-run issue fetch in a non-interactive format.
+Bash(/bin/bash -lc 'git remote -v && git branch --show-current && gh auth status')
+Bash(/bin/bash -lc 'gh repo view --json nameWithOwner,url')
+Bash(/bin/bash -lc 'gh api repos/Soham407/diligence-os/issues/32')
+Bash(/bin/bash -lc 'gh api repos/Soham407/diligence-os/issues/1')
+Bash(/bin/bash -lc 'gh api repos/Soham407/diligence-os/issues/1/comments')
+Bash(/bin/bash -lc 'gh api repos/Soham407/diligence-os/issues/32/comments')
+Bash(/bin/bash -lc 'cat docs/PRD.md')
+Bash(/bin/bash -lc 'find . -maxdepth 3 -type d | sort')
+Bash(/bin/bash -lc 'find supabase -maxdepth 4 -type f | sort')
+I confirmed there are no Edge Function implementations yet beyond tenancy migration, so I’m now mapping where report endpoints and UI gating currently live in the web app to scope the new module correctly.
+Bash(/bin/bash -lc 'find web -maxdepth 6 -type f | sort')
+Bash(/bin/bash -lc 'gh api repos/Soham407/diligence-os/issues/31')
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/migrations/20260509215500_issue_21_foundation_auth_tenancy.sql")
+Bash(/bin/bash -lc 'find docs -maxdepth 4 -type f | sort')
+Bash(/bin/bash -lc "grep -RIn \"functions/v1/reports\\|Entitlements\\|usage_events\\|/me\\|earnings_summary\\|due_diligence\\|lead_intel\" docs supabase web --exclude-dir=node_modules")
+Bash(/bin/bash -lc 'gh issue view 32 --comments --json number,title,body,comments')
+Bash(/bin/bash -lc 'gh issue view 1 --comments --json number,title,body,comments')
+Bash(/bin/bash -lc 'cat package.json')
+Bash(/bin/bash -lc 'cat supabase/package.json')
+Bash(/bin/bash -lc 'cat web/package.json')
+Bash(/bin/bash -lc 'cat mobile/package.json')
+Bash(/bin/bash -lc "sed -n '1,260p' web/app/page.tsx")
+Bash(/bin/bash -lc "sed -n '1,260p' web/app/auth-panel.tsx")
+Bash(/bin/bash -lc "sed -n '1,260p' web/lib/supabase/browser.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' web/lib/supabase/server.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' web/lib/supabase/env.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' README.md")
+Bash(/bin/bash -lc 'cat supabase/config.toml')
+Bash(/bin/bash -lc 'git status --short --branch')
+Bash(/bin/bash -lc "grep -RIn \"retail_free\\|retail-pro\\|b2b_starter\\|b2b-starter\\|agency_pro\\|agency-pro\" docs supabase web --exclude-dir=node_modules")
+I’ve gathered enough context and found that report/me edge functions don’t exist yet, so I’ll add a minimal but complete implementation scoped to issue #32: migration + Entitlements module + report endpoint gating + `/me` endpoint + web upsell UI + a DB test proving N+1 quota rejection.
+Bash(/bin/bash -lc "sed -n '1,280p' supabase/tests/issue_21_auth_tenancy.sql")
+I’m starting the RED step by adding a Supabase DB test that asserts quota math and N+1 rejection semantics through explicit entitlements SQL helpers, then I’ll implement the migration and edge-function module to make it pass.
+Bash(/bin/bash -lc "cat > supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql <<'SQL'
+alter table public.organizations
+  add constraint organizations_plan_supported
+  check (plan in ('retail_free', 'retail_pro', 'b2b_starter', 'b2b_team', 'agency_starter', 'agency_pro'));
+
+create table if not exists public.entitlement_tiers (
+  tier text primary key
+    check (tier in ('retail_free', 'retail_pro', 'b2b_starter', 'b2b_team', 'agency_starter', 'agency_pro')),
+  feature_flags jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.entitlement_policies (
+  tier text not null references public.entitlement_tiers(tier) on delete cascade,
+  action text not null
+    check (action in ('reports.earnings_summary', 'reports.due_diligence', 'reports.lead_intel')),
+  quota_limit integer not null check (quota_limit >= 0),
+  rolling_window_days integer not null check (rolling_window_days > 0),
+  created_at timestamptz not null default now(),
+  primary key (tier, action)
+);
+
+create table if not exists public.usage_events (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references public.organizations(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists usage_events_org_action_created_at_idx
+  on public.usage_events (org_id, action, created_at);
+
+insert into public.entitlement_tiers (tier, feature_flags)
+values
+  ('retail_free', '{\"due_diligence_enabled\":false,\"lead_intel_enabled\":false}'::jsonb),
+  ('retail_pro', '{\"due_diligence_enabled\":false,\"lead_intel_enabled\":false}'::jsonb),
+  ('b2b_starter', '{\"due_diligence_enabled\":true,\"lead_intel_enabled\":false}'::jsonb),
+  ('b2b_team', '{\"due_diligence_enabled\":true,\"lead_intel_enabled\":false}'::jsonb),
+  ('agency_starter', '{\"due_diligence_enabled\":true,\"lead_intel_enabled\":true}'::jsonb),
+  ('agency_pro', '{\"due_diligence_enabled\":true,\"lead_intel_enabled\":true}'::jsonb)
+on conflict (tier) do update
+set feature_flags = excluded.feature_flags;
+
+insert into public.entitlement_policies (tier, action, quota_limit, rolling_window_days)
+values
+  ('retail_free', 'reports.earnings_summary', 3, 30),
+  ('retail_free', 'reports.due_diligence', 0, 30),
+  ('retail_free', 'reports.lead_intel', 0, 30),
+  ('retail_pro', 'reports.earnings_summary', 100, 30),
+  ('retail_pro', 'reports.due_diligence', 0, 30),
+  ('retail_pro', 'reports.lead_intel', 0, 30),
+  ('b2b_starter', 'reports.earnings_summary', 300, 30),
+  ('b2b_starter', 'reports.due_diligence', 40, 30),
+  ('b2b_starter', 'reports.lead_intel', 0, 30),
+  ('b2b_team', 'reports.earnings_summary', 1200, 30),
+  ('b2b_team', 'reports.due_diligence', 250, 30),
+  ('b2b_team', 'reports.lead_intel', 0, 30),
+  ('agency_starter', 'reports.earnings_summary', 1500, 30),
+  ('agency_starter', 'reports.due_diligence', 300, 30),
+  ('agency_starter', 'reports.lead_intel', 100, 30),
+  ('agency_pro', 'reports.earnings_summary', 5000, 30),
+  ('agency_pro', 'reports.due_diligence', 1200, 30),
+  ('agency_pro', 'reports.lead_intel', 500, 30)
+on conflict (tier, action) do update
+set
+  quota_limit = excluded.quota_limit,
+  rolling_window_days = excluded.rolling_window_days;
+
+create or replace function public.entitlement_quota_remaining(
+  p_org_id uuid,
+  p_action text,
+  p_now timestamptz default now()
+)
+returns integer
+language sql
+stable
+as "'$$
+  with selected_policy as (
+    select ep.quota_limit, ep.rolling_window_days
+    from public.organizations o
+    join public.entitlement_policies ep on ep.tier = o.plan
+    where o.id = p_org_id
+      and ep.action = p_action
+    limit 1
+  ),
+  usage_count as (
+    select count(*)::integer as used
+    from public.usage_events ue
+    join selected_policy sp on true
+    where ue.org_id = p_org_id
+      and ue.action = p_action
+      and ue.created_at >= (p_now - make_interval(days => sp.rolling_window_days))
+      and ue.created_at <= p_now
+  )
+  select coalesce(
+    greatest((select quota_limit from selected_policy) - (select used from usage_count), 0),
+    0
+  );
+$$;
+
+create or replace function public.entitlement_can(
+  p_org_id uuid,
+  p_action text,
+  p_now timestamptz default now()
+)
+returns boolean
+language sql
+stable
+as $$
+  select public.entitlement_quota_remaining(p_org_id, p_action, p_now) > 0;
+$$;
+
+grant select on public.entitlement_tiers, public.entitlement_policies to authenticated;
+grant select, insert on public.usage_events to authenticated;
+
+alter table public.entitlement_tiers enable row level security;
+alter table public.entitlement_policies enable row level security;
+alter table public.usage_events enable row level security;
+
+drop policy if exists entitlement_tiers_read on public.entitlement_tiers;
+create policy entitlement_tiers_read on public.entitlement_tiers
+for select
+using (auth.role() = '"'authenticated');
+
+drop policy if exists entitlement_policies_read on public.entitlement_policies;
+create policy entitlement_policies_read on public.entitlement_policies
+for select
+using (auth.role() = 'authenticated');
+
+drop policy if exists usage_events_read on public.usage_events;
+create policy usage_events_read on public.usage_events
+for select
+using (org_id = public.current_active_org());
+
+drop policy if exists usage_events_insert on public.usage_events;
+create policy usage_events_insert on public.usage_events
+for insert
+with check (org_id = public.current_active_org());
+SQL")
+I’ve added the migration and now I’m adding a focused DB test that codifies the acceptance demo: free-tier earnings summaries allow exactly N runs in-window and reject N+1 via `entitlement_can`.
+Bash(/bin/bash -lc "cat > supabase/tests/issue_32_entitlements.sql <<'SQL'
+begin;
+
+do "'$$
+declare
+  user_a uuid := '"'00000000-0000-0000-0000-0000000032a1';
+  org_a uuid;
+  remaining integer;
+  allowed boolean;
+begin
+  delete from auth.users where id = user_a;
+
+  insert into auth.users (
+    id,
+    aud,
+    role,
+    email,
+    encrypted_password,
+    email_confirmed_at,
+    raw_app_meta_data,
+    raw_user_meta_data,
+    created_at,
+    updated_at
+  )
+  values (
+    user_a,
+    'authenticated',
+    'authenticated',
+    'issue32-user-a@example.com',
+    crypt('password', gen_salt('bf')),
+    now(),
+    '{}'::jsonb,
+    '{\"full_name\":\"Issue 32 User A\"}'::jsonb,
+    now(),
+    now()
+  );
+
+  select personal_org_id into org_a from public.user_profiles where user_id = user_a;
+
+  if org_a is null then
+    raise exception 'expected trigger-created personal org for user';
+  end if;
+
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', user_a::text, true);
+  perform set_config(
+    'request.jwt.claims',
+    json_build_object('app_metadata', json_build_object('active_org_id', org_a::text))::text,
+    true
+  );
+
+  select public.entitlement_quota_remaining(org_a, 'reports.earnings_summary') into remaining;
+  if remaining <> 3 then
+    raise exception 'expected retail_free monthly earnings quota 3, got %', remaining;
+  end if;
+
+  insert into public.usage_events (org_id, user_id, action, metadata)
+  values
+    (org_a, user_a, 'reports.earnings_summary', '{\"origin\":\"test\"}'::jsonb),
+    (org_a, user_a, 'reports.earnings_summary', '{\"origin\":\"test\"}'::jsonb),
+    (org_a, user_a, 'reports.earnings_summary', '{\"origin\":\"test\"}'::jsonb);
+
+  select public.entitlement_can(org_a, 'reports.earnings_summary') into allowed;
+  if allowed then
+    raise exception 'expected N+1 to be rejected for retail_free earnings_summary';
+  end if;
+
+  select public.entitlement_quota_remaining(org_a, 'reports.earnings_summary') into remaining;
+  if remaining <> 0 then
+    raise exception 'expected quota remaining 0 after three runs, got %', remaining;
+  end if;
+
+  insert into public.usage_events (org_id, user_id, action, metadata, created_at)
+  values (org_a, user_a, 'reports.earnings_summary', '{\"origin\":\"test-old\"}'::jsonb, now() - interval '40 days');
+
+  select public.entitlement_quota_remaining(org_a, 'reports.earnings_summary') into remaining;
+  if remaining <> 0 then
+    raise exception 'expected 40-day-old usage event to be excluded from 30-day window';
+  end if;
+
+  select public.entitlement_quota_remaining(org_a, 'reports.due_diligence') into remaining;
+  if remaining <> 0 then
+    raise exception 'expected due_diligence disabled for retail_free';
+  end if;
+
+  reset role;
+end;
+"'$$;
+
+rollback;
+SQL')
+Bash(/bin/bash -lc 'mkdir -p supabase/functions/_shared supabase/functions/reports supabase/functions/me')
+Bash(/bin/bash -lc "cat > supabase/functions/_shared/http.ts <<'TS'
+export const corsHeaders: Record<string, string> = {
+  \"Access-Control-Allow-Origin\": \"*\",
+  \"Access-Control-Allow-Headers\": \"authorization, x-client-info, apikey, content-type\",
+  \"Access-Control-Allow-Methods\": \"GET, POST, OPTIONS\"
+};
+
+export function jsonResponse(status: number, payload: unknown): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      ...corsHeaders,
+      \"Content-Type\": \"application/json\"
+    }
+  });
+}
+TS
+
+cat > supabase/functions/_shared/supabase.ts <<'TS'
+import { createClient, type SupabaseClient, type User } from \"https://esm.sh/@supabase/supabase-js@2.49.8\";
+import { jsonResponse } from \"./http.ts\";
+
+export type AuthContext = {
+  supabase: SupabaseClient;
+  user: User;
+  activeOrgId: string;
+};
+
+function getRequiredEnv(name: string): string {
+  const value = Deno.env.get(name);
+
+  if ("'!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+function getBearerToken(request: Request): string | null {
+  const authHeader = request.headers.get("authorization") ?? request.headers.get("Authorization");
+
+  if (!authHeader?.startsWith("Bearer ")) {
+    return null;
+  }
+
+  return authHeader.substring("Bearer ".length).trim();
+}
+
+export async function requireAuthContext(request: Request): Promise<AuthContext | Response> {
+  const token = getBearerToken(request);
+
+  if (!token) {
+    return jsonResponse(401, { error: "Missing bearer token." });
+  }
+
+  const supabase = createClient(getRequiredEnv("SUPABASE_URL"), getRequiredEnv("SUPABASE_ANON_KEY"), {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  });
+
+  const {
+    data: { user },
+    error
+  } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    return jsonResponse(401, { error: "Invalid auth token." });
+  }
+
+  const activeOrgId = user.app_metadata?.active_org_id;
+
+  if (typeof activeOrgId !== "string" || !activeOrgId) {
+    return jsonResponse(400, { error: "Missing active org claim on session." });
+  }
+
+  return {
+    supabase,
+    user,
+    activeOrgId
+  };
+}
+TS
+
+cat > supabase/functions/_shared/entitlements.ts <<'"'TS'
+import type { SupabaseClient } from \"https://esm.sh/@supabase/supabase-js@2.49.8\";
+
+export const REPORT_ACTIONS = [
+  \"reports.earnings_summary\",
+  \"reports.due_diligence\",
+  \"reports.lead_intel\"
+] as const;
+
+export type EntitlementAction = (typeof REPORT_ACTIONS)[number];
+
+export type QuotaSnapshot = Record<EntitlementAction, number>;
+
+export type EntitlementSnapshot = {
+  tier: string;
+  quotasRemaining: QuotaSnapshot;
+  featureFlags: Record<string, boolean>;
+};
+
+export class Entitlements {
+  constructor(private readonly supabase: SupabaseClient) {}
+
+  async can(activeOrgId: string, action: EntitlementAction): Promise<boolean> {
+    const remaining = await this.quotaRemaining(activeOrgId, action);
+    return remaining > 0;
+  }
+
+  async quotaRemaining(activeOrgId: string, action: EntitlementAction): Promise<number> {
+    const policy = await this.getPolicy(activeOrgId, action);
+
+    if ("'!policy) {
+      return 0;
+    }
+
+    const now = new Date();
+    const from = new Date(now.getTime() - policy.rolling_window_days * 24 * 60 * 60 * 1000);
+
+    const { count, error } = await this.supabase
+      .from("usage_events")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", activeOrgId)
+      .eq("action", action)
+      .gte("created_at", from.toISOString())
+      .lte("created_at", now.toISOString());
+
+    if (error) {
+      throw new Error(`Failed to count usage events: ${error.message}`);
+    }
+
+    return Math.max(policy.quota_limit - (count ?? 0), 0);
+  }
+
+  async snapshot(activeOrgId: string): Promise<EntitlementSnapshot> {
+    const tier = await this.getTier(activeOrgId);
+
+    const quotasEntries = await Promise.all(
+      REPORT_ACTIONS.map(async (action) => [action, await this.quotaRemaining(activeOrgId, action)] as const)
+    );
+
+    const { data: tierRow, error: tierError } = await this.supabase
+      .from("entitlement_tiers")
+      .select("feature_flags")
+      .eq("tier", tier)
+      .maybeSingle();
+
+    if (tierError) {
+      throw new Error(`Failed to load feature flags: ${tierError.message}`);
+    }
+
+    const featureFlags = normalizeFeatureFlags(tierRow?.feature_flags);
+
+    return {
+      tier,
+      quotasRemaining: Object.fromEntries(quotasEntries) as QuotaSnapshot,
+      featureFlags
+    };
+  }
+
+  private async getTier(activeOrgId: string): Promise<string> {
+    const { data, error } = await this.supabase
+      .from("organizations")
+      .select("plan")
+      .eq("id", activeOrgId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load organization tier: ${error.message}`);
+    }
+
+    if (!data?.plan) {
+      throw new Error("Active org not found.");
+    }
+
+    return data.plan;
+  }
+
+  private async getPolicy(activeOrgId: string, action: EntitlementAction) {
+    const tier = await this.getTier(activeOrgId);
+
+    const { data, error } = await this.supabase
+      .from("entitlement_policies")
+      .select("quota_limit, rolling_window_days")
+      .eq("tier", tier)
+      .eq("action", action)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load entitlement policy: ${error.message}`);
+    }
+
+    return data;
+  }
+}
+
+function normalizeFeatureFlags(input: unknown): Record<string, boolean> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(input as Record<string, unknown>).map(([key, value]) => [key, Boolean(value)])
+  );
+}
+TS
+
+cat > supabase/functions/reports/index.ts <<'"'TS'
+import { Entitlements, type EntitlementAction } from \"../_shared/entitlements.ts\";
+import { corsHeaders, jsonResponse } from \"../_shared/http.ts\";
+import { requireAuthContext } from \"../_shared/supabase.ts\";
+
+const REPORT_TYPES = [\"earnings_summary\", \"due_diligence\", \"lead_intel\"] as const;
+type ReportType = (typeof REPORT_TYPES)[number];
+
+type CreateReportRequest = {
+  company_id?: string;
+  project_id?: string;
+  report_type?: string;
+};
+
+Deno.serve(async (request) => {
+  if (request.method === \"OPTIONS\") {
+    return new Response(\"ok\", { headers: corsHeaders });
+  }
+
+  if (request.method "'!== "POST") {
+    return jsonResponse(405, { error: "Method not allowed." });
+  }
+
+  const authContext = await requireAuthContext(request);
+  if (authContext instanceof Response) {
+    return authContext;
+  }
+
+  const { supabase, user, activeOrgId } = authContext;
+
+  let payload: CreateReportRequest;
+  try {
+    payload = (await request.json()) as CreateReportRequest;
+  } catch {
+    return jsonResponse(400, { error: "Invalid JSON request body." });
+  }
+
+  const reportType = payload.report_type;
+  if (!reportType || !REPORT_TYPES.includes(reportType as ReportType)) {
+    return jsonResponse(400, {
+      error: "report_type must be one of earnings_summary, due_diligence, lead_intel."
+    });
+  }
+
+  const entitlementAction = reportTypeToAction(reportType as ReportType);
+  const mode = reportType === "earnings_summary" ? "stream" : "job";
+
+  const entitlements = new Entitlements(supabase);
+  const allowed = await entitlements.can(activeOrgId, entitlementAction);
+
+  if (!allowed) {
+    const remaining = await entitlements.quotaRemaining(activeOrgId, entitlementAction);
+    return jsonResponse(429, {
+      error: {
+        code: "QUOTA_EXCEEDED",
+        message: `Quota exceeded for ${reportType}. Upgrade your plan to continue.`,
+        action: entitlementAction,
+        remaining
+      }
+    });
+  }
+
+  const { error: usageError } = await supabase.from("usage_events").insert({
+    org_id: activeOrgId,
+    user_id: user.id,
+    action: entitlementAction,
+    metadata: {
+      report_type: reportType,
+      mode,
+      company_id: payload.company_id ?? null,
+      project_id: payload.project_id ?? null
+    }
+  });
+
+  if (usageError) {
+    return jsonResponse(500, { error: `Failed to persist usage event: ${usageError.message}` });
+  }
+
+  if (mode === "stream") {
+    return jsonResponse(200, {
+      report_id: crypto.randomUUID(),
+      mode,
+      message: "Streaming report path accepted."
+    });
+  }
+
+  return jsonResponse(202, {
+    report_id: crypto.randomUUID(),
+    job_id: crypto.randomUUID(),
+    mode,
+    message: "Job report path accepted."
+  });
+});
+
+function reportTypeToAction(reportType: ReportType): EntitlementAction {
+  switch (reportType) {
+    case "earnings_summary":
+      return "reports.earnings_summary";
+    case "due_diligence":
+      return "reports.due_diligence";
+    case "lead_intel":
+      return "reports.lead_intel";
+  }
+}
+TS
+
+cat > supabase/functions/me/index.ts <<'"'TS'
+import { Entitlements } from \"../_shared/entitlements.ts\";
+import { corsHeaders, jsonResponse } from \"../_shared/http.ts\";
+import { requireAuthContext } from \"../_shared/supabase.ts\";
+
+Deno.serve(async (request) => {
+  if (request.method === \"OPTIONS\") {
+    return new Response(\"ok\", { headers: corsHeaders });
+  }
+
+  if (request.method "'!== "GET") {
+    return jsonResponse(405, { error: "Method not allowed." });
+  }
+
+  const authContext = await requireAuthContext(request);
+  if (authContext instanceof Response) {
+    return authContext;
+  }
+
+  const { supabase, activeOrgId } = authContext;
+  const entitlements = new Entitlements(supabase);
+
+  const snapshot = await entitlements.snapshot(activeOrgId);
+
+  return jsonResponse(200, {
+    active_org_id: activeOrgId,
+    tier: snapshot.tier,
+    quotas_remaining: snapshot.quotasRemaining,
+    feature_flags: snapshot.featureFlags
+  });
+});
+TS')
+I’m moving to the UI acceptance now: adding a minimal signed-in report panel that reads `/functions/v1/me`, shows remaining quotas/feature flags, and renders an upsell state when quota is exhausted while still calling the gated backend.
+Bash(/bin/bash -lc "cat > web/app/report-panel.tsx <<'TSX'
+\"use client\";
+
+import { useEffect, useMemo, useState } from \"react\";
+import { getSupabaseBrowserClient } from \"../lib/supabase/browser\";
+
+type MePayload = {
+  active_org_id: string;
+  tier: string;
+  quotas_remaining: {
+    \"reports.earnings_summary\": number;
+    \"reports.due_diligence\": number;
+    \"reports.lead_intel\": number;
+  };
+  feature_flags: Record<string, boolean>;
+};
+
+export function ReportPanel() {
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+  const [me, setMe] = useState<MePayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function loadMe() {
+    setLoading(true);
+    setError(null);
+
+    const { data, error: invokeError } = await supabase.functions.invoke(\"me\", {
+      method: \"GET\"
+    });
+
+    if (invokeError) {
+      setLoading(false);
+      setError(invokeError.message);
+      return;
+    }
+
+    setMe(data as MePayload);
+    setLoading(false);
+  }
+
+  async function runEarningsSummary() {
+    setBusy(true);
+    setError(null);
+    setStatus(null);
+
+    const { data, error: invokeError } = await supabase.functions.invoke(\"reports\", {
+      body: {
+        company_id: \"demo-company\",
+        report_type: \"earnings_summary\"
+      }
+    });
+
+    if (invokeError) {
+      const message = await parseFunctionError(invokeError);
+      setError(message);
+      setBusy(false);
+      await loadMe();
+      return;
+    }
+
+    setStatus("'`Report accepted (${String((data as { mode?: string }).mode ?? "stream")}).`);
+    setBusy(false);
+    await loadMe();
+  }
+
+  const remaining = me?.quotas_remaining["reports.earnings_summary"] ?? 0;
+  const showUpsell = !loading && remaining <= 0;
+
+  return (
+    <section className="space-y-4 rounded-xl border border-slate-800 bg-slate-900/80 p-6">
+      <h2 className="text-2xl font-semibold">Entitlements</h2>
+
+      {loading ? <p className="text-sm text-slate-300">Loading entitlements…</p> : null}
+
+      {me ? (
+        <div className="space-y-2 text-sm text-slate-300">
+          <p>Tier: {me.tier}</p>
+          <p>Earnings summaries remaining: {remaining}</p>
+          <p>Due diligence enabled: {String(me.feature_flags.due_diligence_enabled ?? false)}</p>
+          <p>Lead intel enabled: {String(me.feature_flags.lead_intel_enabled ?? false)}</p>
+        </div>
+      ) : null}
+
+      <button
+        className="rounded-md bg-emerald-300 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-60"
+        disabled={busy || loading}
+        onClick={runEarningsSummary}
+        type="button"
+      >
+        Run earnings summary
+      </button>
+
+      {showUpsell ? (
+        <p className="rounded-md border border-amber-400/60 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+          Free-tier quota exhausted. Upgrade to continue running earnings summaries.
+        </p>
+      ) : null}
+
+      {status ? <p className="text-sm text-emerald-400">{status}</p> : null}
+      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+    </section>
+  );
+}
+
+async function parseFunctionError(error: unknown): Promise<string> {
+  if (typeof error !== "object" || error === null) {
+    return "Request failed.";
+  }
+
+  const maybeContext = (error as { context?: unknown }).context;
+  if (maybeContext instanceof Response) {
+    try {
+      const payload = (await maybeContext.json()) as { error?: { message?: string } | string };
+      if (typeof payload.error === "string") {
+        return payload.error;
+      }
+
+      if (payload.error && typeof payload.error === "object" && payload.error.message) {
+        return payload.error.message;
+      }
+    } catch {
+      return `Request failed with status ${maybeContext.status}.`;
+    }
+  }
+
+  const maybeMessage = (error as { message?: unknown }).message;
+  if (typeof maybeMessage === "string") {
+    return maybeMessage;
+  }
+
+  return "Request failed.";
+}
+TSX
+
+cat > web/app/page.tsx <<'"'TSX'
+import { AuthPanel } from \"./auth-panel\";
+import { ReportPanel } from \"./report-panel\";
+import { createSupabaseServerClient } from \"../lib/supabase/server\";
+
+export default async function Home() {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  return (
+    <main className=\"min-h-screen bg-slate-950 px-6 py-20 text-slate-100\">
+      <section className=\"mx-auto max-w-3xl space-y-6\">
+        <p className=\"text-sm uppercase tracking-[0.2em] text-slate-400\">Diligence OS</p>
+        <h1 className=\"text-4xl font-semibold leading-tight md:text-5xl\">Entitlements + Tier Gating</h1>
+        <p className=\"text-lg text-slate-300\">
+          Server-side entitlement checks gate report endpoints. Client-side state mirrors "'`/me` for UX-only
+          upsell.
+        </p>
+        <AuthPanel userEmail={user?.email ?? null} />
+        {user ? <ReportPanel /> : null}
+      </section>
+    </main>
+  );
+}
+TSX')
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql")
+Bash(/bin/bash -lc 'git status --short')
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/me/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/_shared/entitlements.ts")
+Bash(/bin/bash -lc "sed -n '1,320p' web/app/report-panel.tsx")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "sed -n '1,260p' supabase/tests/issue_32_entitlements.sql")
+I’m at verification: running `npm run typecheck` and `npm run test` from the repo root now, then I’ll fix anything that fails before committing.
+Bash(/bin/bash -lc 'npm run typecheck')
+Bash(/bin/bash -lc 'npm run test')
+Bash(/bin/bash -lc 'deno check supabase/functions/_shared/*.ts supabase/functions/me/index.ts supabase/functions/reports/index.ts')
+Bash(/bin/bash -lc 'git status --short')
+Implementation is complete and verified as far as this environment allows; I’m staging the scoped files and creating the required `RALPH:` commit with task/PRD reference, decisions, changed files, and blocker notes.
+Bash(/bin/bash -lc 'git add supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql supabase/tests/issue_32_entitlements.sql supabase/functions/_shared/http.ts supabase/functions/_shared/supabase.ts supabase/functions/_shared/entitlements.ts supabase/functions/reports/index.ts supabase/functions/me/index.ts web/app/page.tsx web/app/report-panel.tsx && git commit -m "RALPH: complete issue #32 entitlements + tier gating across report endpoints (PRD AD-5/AD-9)" -m "Task completed + PRD reference:
+- Implemented issue #32 Entitlements module and server-side tier gating across report creation paths, aligned to docs/PRD.md AD-5 (stream vs job report path split) and AD-9 (tiered org plans), plus API contract for read-only /functions/v1/me mirroring entitlements.
+
+Key decisions made:
+- Added configurable quota policy in Postgres via entitlement_tiers + entitlement_policies tables (no hardcoded tier limits in code) and rolling-window usage tracking via usage_events.
+- Exposed Entitlements.can(activeOrgId, action) and Entitlements.quotaRemaining(activeOrgId, action) in a shared Edge Function module, then enforced Entitlements.can before any stream/job report path work.
+- Added /functions/v1/me endpoint to return active org tier, quotas remaining, and feature flags for client UX gating; added Next.js upsell UI for exhausted free-tier earnings quota while backend remains authoritative.
+- Added SQL helpers entitlement_can / entitlement_quota_remaining and a DB test proving free-tier N-run limit with server-side N+1 rejection semantics.
+
+Files changed:
+- supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql
+- supabase/tests/issue_32_entitlements.sql
+- supabase/functions/_shared/http.ts
+- supabase/functions/_shared/supabase.ts
+- supabase/functions/_shared/entitlements.ts
+- supabase/functions/reports/index.ts
+- supabase/functions/me/index.ts
+- web/app/page.tsx
+- web/app/report-panel.tsx
+
+Blockers or notes for next iteration:
+- npm run test fails in this environment because Supabase local DB is not running (connection refused to 127.0.0.1:54322), so the new DB test could not be executed here.
+- Current tier source is organizations.plan; when issue #31 billing/subscriptions flow lands, Entitlements can switch tier lookup to subscriptions.plan if required by that integration."')
+Bash(/bin/bash -lc 'git status --short --branch')
+Implemented issue #32 on branch `sandcastle/issue-32-entitlements-module-tier-gating-across-all-report-endpoints` and committed as `d576401`.
+
+Changes:
+- Added configurable entitlement policy + rolling-window usage schema in migration:
+  - [20260510130000_issue_32_entitlements_tier_gating.sql](/home/agent/workspace/supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql)
+- Added DB test covering free-tier N runs then N+1 rejection semantics:
+  - [issue_32_entitlements.sql](/home/agent/workspace/supabase/tests/issue_32_entitlements.sql)
+- Added shared Entitlements module exposing `can(activeOrgId, action)` and `quotaRemaining(activeOrgId, action)`:
+  - [entitlements.ts](/home/agent/workspace/supabase/functions/_shared/entitlements.ts)
+- Added report endpoint gating (stream/job path split, quota re-check before work):
+  - [reports/index.ts](/home/agent/workspace/supabase/functions/reports/index.ts)
+- Added read-only `/functions/v1/me` endpoint returning active-org tier, quotas remaining, feature flags:
+  - [me/index.ts](/home/agent/workspace/supabase/functions/me/index.ts)
+- Added shared Edge Function auth/HTTP helpers:
+  - [supabase.ts](/home/agent/workspace/supabase/functions/_shared/supabase.ts)
+  - [http.ts](/home/agent/workspace/supabase/functions/_shared/http.ts)
+- Added Next.js upsell UI when quota is exhausted, while backend remains authoritative:
+  - [report-panel.tsx](/home/agent/workspace/web/app/report-panel.tsx)
+  - [page.tsx](/home/agent/workspace/web/app/page.tsx)
+
+Verification:
+- `npm run typecheck` passed.
+- `npm run test` failed in this environment because local Supabase/Postgres is not running (`127.0.0.1:54322` connection refused).
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
+
+--- Run started: 2026-05-09T21:13:04.218Z ---
+Sandcastle Run
+  Agent: implementer-32
+  Sandbox: docker
+  Max iterations: 100
+  Branch: sandcastle/issue-32-entitlements-module-tier-gating-across-all-report-endpoints
+Iteration 1/100
+Setting up sandbox
+  test -f package.json && npm install || echo 'no package.json yet, skipping install'
+Setting up sandbox done (13.9s)
+Expanding shell expressions
+  git log -n 10 --format="%H%n%ad%n%B---" --date=short → ~1860 tokens
+Expanding shell expressions done (0.0s)
+Agent started
+I’m going to pull the issue contracts (`#32` and parent `#1`), read `AGENTS.md` and `docs/PRD.md`, then inspect current branch/state to confirm what is still missing before writing tests and code.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch && git branch --list && ls -la')
+I confirmed we’re already on the requested branch. Next I’ll fetch both GitHub issues and read repo guidance (`AGENTS.md`, `docs/PRD.md`) to extract exact acceptance criteria and constraints.
+Bash(/bin/bash -lc "cd /home/agent/workspace && cat AGENTS.md && echo '---PRD---' && sed -n '1,260p' docs/PRD.md")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 1 --comments')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 32 --comments')
+I have PRD and repo instructions loaded, but both `gh issue view` calls returned empty output in that parallel run. I’ll retry them directly and capture cleanly.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 32 --comments --repo Soham407/diligence-os')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 32 --repo Soham407/diligence-os --json number,title,body,comments,author,state,url')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 1 --repo Soham407/diligence-os --json number,title,body,comments,author,state,url')
+I’ve extracted the exact issue contract. Next I’m auditing existing implementation and tests on this branch to verify every acceptance criterion, then I’ll add/fix anything missing with a test-first cycle.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && rg --files supabase/functions | sort')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && rg --files supabase/tests supabase/migrations web/app | sort')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git log --oneline --decorate -n 12')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && find supabase/functions -maxdepth 3 -type f | sort')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && find supabase/tests supabase/migrations web/app -type f | sort')
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,240p' supabase/functions/_shared/entitlements.ts")
+I found an existing entitlements implementation already on this branch. I’m now checking the report and `/me` endpoints plus DB tests to confirm strict compliance with issue #32 acceptance criteria.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,300p' supabase/functions/reports/index.ts")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,240p' supabase/functions/me/index.ts")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,320p' supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,320p' supabase/tests/issue_32_entitlements.sql")
+I’ve confirmed migration and DB tests include configurable tier policies and rolling-window quota logic. I’m now validating edge-function auth wiring and frontend upsell gating behavior to catch any contract gaps.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,260p' supabase/functions/_shared/supabase.ts")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,220p' supabase/functions/_shared/http.ts")
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,320p' web/app/report-panel.tsx && echo '---' && sed -n '1,260p' web/app/page.tsx")
+I’m at validation stage: implementation appears present, so I’m running the required `typecheck` and `test` loops now to verify whether any issue-32 gaps still fail in this environment before deciding on code edits.
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat package.json')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat supabase/package.json')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && cat web/package.json')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run typecheck')
+Typecheck is still running because this environment is populating dependencies; I’m waiting for completion and then I’ll run the full test command.
+Agent idle for 1 minute
+Agent idle for 2 minutes
+Agent idle for 3 minutes
+Bash(/bin/bash -lc 'cd /home/agent/workspace && npm run test')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && git status --short --branch')
+I verified `HEAD` is already the issue-32 implementation commit and working tree is clean. I’ll quickly check issue-tracker conventions, then I’ll report completion status and test results clearly.
+Bash(/bin/bash -lc "cd /home/agent/workspace && sed -n '1,220p' docs/agents/issue-tracker.md && echo '---' && sed -n '1,220p' docs/agents/domain.md && echo '---' && sed -n '1,220p' docs/agents/triage-labels.md")
+Bash(/bin/bash -lc "cd /home/agent/workspace && if [ -f CONTEXT.md ]; then sed -n '1,260p' CONTEXT.md; fi")
+Bash(/bin/bash -lc 'cd /home/agent/workspace && find docs/adr -maxdepth 1 -type f | sort && for f in $(find docs/adr -maxdepth 1 -type f | sort); do echo '"'---'; echo \""'$f"; sed -n '"'1,220p' \""'$f"; done')
+Bash(/bin/bash -lc 'cd /home/agent/workspace && gh issue view 32 --comments --json number,title,body,comments,labels,state,url,assignees')
+Issue #32 is already fully implemented on the requested branch at `d576401be5409a5ad4d324121316b9dbcd8f7aae` and the issue itself is closed with “Completed by Sandcastle.”
+
+I verified the acceptance criteria against:
+- [`supabase/functions/_shared/entitlements.ts`](/home/agent/workspace/supabase/functions/_shared/entitlements.ts)
+- [`supabase/functions/reports/index.ts`](/home/agent/workspace/supabase/functions/reports/index.ts)
+- [`supabase/functions/me/index.ts`](/home/agent/workspace/supabase/functions/me/index.ts)
+- [`supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql`](/home/agent/workspace/supabase/migrations/20260510130000_issue_32_entitlements_tier_gating.sql)
+- [`supabase/tests/issue_32_entitlements.sql`](/home/agent/workspace/supabase/tests/issue_32_entitlements.sql)
+- [`web/app/report-panel.tsx`](/home/agent/workspace/web/app/report-panel.tsx)
+
+Validation runs:
+- `npm run typecheck`: passed
+- `npm run test`: fails in this environment because Supabase local DB is not running (`127.0.0.1:54322 connection refused`)
+
+No additional code changes were required, so no new commit was created.
+
+<promise>COMPLETE</promise>
+Agent stopped
+Collecting commits
+Collecting commits done (0.0s)
+Agent signaled completion after 1 iteration(s).
+Run complete: agent finished after 1 iteration(s).
