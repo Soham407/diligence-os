@@ -1,5 +1,6 @@
 import { AgencyDashboard } from "./agency-dashboard";
 import { AuthPanel } from "./auth-panel";
+import { CompanyResolverPanel } from "./company-resolver-panel";
 import { ReportPanel } from "./report-panel";
 import { createSupabaseServerClient } from "../lib/supabase/server";
 
@@ -131,6 +132,7 @@ export default async function Home({
           userId={user.id}
           activeOrgId={activeOrgId}
         />
+        <CompanyResolverPanel />
         <AgencyDashboard
           activeOrg={activeOrg}
           organizations={organizations}

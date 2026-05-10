@@ -8,6 +8,11 @@
     "start": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest start --workdir \"$ROOT/supabase\"'",
     "stop": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest stop --workdir \"$ROOT/supabase\"'",
     "typecheck": "echo 'No TypeScript sources yet in supabase package'",
-    "test": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest test db --workdir \"$ROOT/supabase\"'"
+    "test:unit": "vitest run",
+    "test:db": "bash -lc 'set -euo pipefail; ROOT=\"$(git rev-parse --show-toplevel)\"; npx supabase@latest test db --workdir \"$ROOT/supabase\"'",
+    "test": "corepack pnpm run test:unit && corepack pnpm run test:db"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
   }
 }

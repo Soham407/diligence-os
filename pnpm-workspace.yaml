@@ -3,4 +3,5 @@ packages:
   - mobile
   - supabase
 allowBuilds:
+  esbuild: true
   sharp: true
