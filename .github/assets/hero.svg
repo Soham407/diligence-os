@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="400" viewBox="0 0 1200 400"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Diligence OS</title>
+  <desc id="desc">Financial intelligence platform that turns Indian market disclosures into structured, citation-grounded reports across retail, B2B, and agency tiers.</desc>
+
+  <defs>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="1200" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#060B14"/>
+      <stop offset="100%" stop-color="#0C1425"/>
+    </linearGradient>
+    <linearGradient id="accent-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#2563EB"/>
+    </linearGradient>
+    <linearGradient id="green-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="line-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="400" rx="16" fill="url(#bg-grad)"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.04" stroke="#3B82F6" stroke-width="0.5">
+    <line x1="200" y1="0" x2="200" y2="400"/>
+    <line x1="400" y1="0" x2="400" y2="400"/>
+    <line x1="600" y1="0" x2="600" y2="400"/>
+    <line x1="800" y1="0" x2="800" y2="400"/>
+    <line x1="1000" y1="0" x2="1000" y2="400"/>
+    <line x1="0" y1="100" x2="1200" y2="100"/>
+    <line x1="0" y1="200" x2="1200" y2="200"/>
+    <line x1="0" y1="300" x2="1200" y2="300"/>
+  </g>
+
+  <!-- Left: Title block -->
+  <g id="title-block" transform="translate(56, 48)">
+    <!-- Category label -->
+    <rect x="0" y="0" width="180" height="26" rx="13" fill="#3B82F6" opacity="0.12"/>
+    <text x="14" y="17" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="11" font-weight="700" fill="#3B82F6" letter-spacing="1.8" text-transform="uppercase">
+      FINANCIAL INTELLIGENCE
+    </text>
+
+    <!-- Project name -->
+    <text x="0" y="80" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="52" font-weight="800" fill="#F0F2F5" letter-spacing="-1.5">
+      Diligence OS
+    </text>
+
+    <!-- Description -->
+    <text font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="16" fill="#94A3B8" line-height="1.5">
+      <tspan x="0" y="116">Turn Indian market disclosures into structured,</tspan>
+      <tspan x="0" y="138">citation-grounded intelligence reports.</tspan>
+    </text>
+
+    <!-- Tech pills -->
+    <g transform="translate(0, 168)">
+      <rect x="0" y="0" width="68" height="26" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.5"/>
+      <text x="34" y="17" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="11" fill="#94A3B8" text-anchor="middle">Next.js</text>
+
+      <rect x="76" y="0" width="52" height="26" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.5"/>
+      <text x="102" y="17" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="11" fill="#94A3B8" text-anchor="middle">Expo</text>
+
+      <rect x="136" y="0" width="78" height="26" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.5"/>
+      <text x="175" y="17" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="11" fill="#94A3B8" text-anchor="middle">Supabase</text>
+
+      <rect x="222" y="0" width="70" height="26" rx="6" fill="#1E293B" stroke="#334155" stroke-width="0.5"/>
+      <text x="257" y="17" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="11" fill="#94A3B8" text-anchor="middle">Claude</text>
+    </g>
+
+    <!-- Version -->
+    <text x="0" y="232" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="11" fill="#475569">v0.1.0 · TypeScript · pnpm monorepo</text>
+  </g>
+
+  <!-- Right: Architecture diagram — 3-layer flow -->
+  <g id="architecture" transform="translate(660, 40)">
+
+    <!-- Layer 1: Source Documents -->
+    <g transform="translate(0, 0)">
+      <rect x="0" y="0" width="220" height="90" rx="10" fill="#0F1729" stroke="#1E293B" stroke-width="1"/>
+      <text x="16" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="9" fill="#64748B" letter-spacing="1.2" font-weight="600">LAYER 1</text>
+      <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            font-size="14" font-weight="700" fill="#E2E8F0">Source Documents</text>
+
+      <!-- Source icons -->
+      <g transform="translate(16, 54)">
+        <rect x="0" y="0" width="56" height="24" rx="4" fill="#1E293B"/>
+        <text x="28" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="9" fill="#64748B" text-anchor="middle">BSE/NSE</text>
+
+        <rect x="62" y="0" width="46" height="24" rx="4" fill="#1E293B"/>
+        <text x="85" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="9" fill="#64748B" text-anchor="middle">MCA</text>
+
+        <rect x="114" y="0" width="46" height="24" rx="4" fill="#1E293B"/>
+        <text x="137" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="9" fill="#64748B" text-anchor="middle">PDFs</text>
+
+        <rect x="166" y="0" width="38" height="24" rx="4" fill="#1E293B"/>
+        <text x="185" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="9" fill="#64748B" text-anchor="middle">IR</text>
+      </g>
+    </g>
+
+    <!-- Connection line L1 → L2 -->
+    <line x1="110" y1="90" x2="110" y2="120" stroke="url(#line-grad)" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <text x="120" y="109" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#3B82F6" opacity="0.6">ScrapeGraphAI</text>
+
+    <!-- Layer 2: Agent Reasoning -->
+    <g transform="translate(0, 120)">
+      <rect x="0" y="0" width="220" height="90" rx="10" fill="#0F1729" stroke="#2563EB" stroke-width="1" opacity="0.9"/>
+      <text x="16" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="9" fill="#3B82F6" letter-spacing="1.2" font-weight="600">LAYER 2</text>
+      <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            font-size="14" font-weight="700" fill="#E2E8F0">Agent Reasoning</text>
+
+      <!-- Agent types -->
+      <g transform="translate(16, 54)">
+        <rect x="0" y="0" width="60" height="24" rx="4" fill="#1E3A5F"/>
+        <text x="30" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="8" fill="#60A5FA" text-anchor="middle">Earnings</text>
+
+        <rect x="66" y="0" width="46" height="24" rx="4" fill="#1E3A5F"/>
+        <text x="89" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="8" fill="#60A5FA" text-anchor="middle">DueDil</text>
+
+        <rect x="118" y="0" width="56" height="24" rx="4" fill="#1E3A5F"/>
+        <text x="146" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="8" fill="#60A5FA" text-anchor="middle">LeadIntel</text>
+      </g>
+    </g>
+
+    <!-- Connection line L2 → L3 -->
+    <line x1="110" y1="210" x2="110" y2="240" stroke="url(#line-grad)" stroke-width="1.5" stroke-dasharray="3,3"/>
+    <text x="120" y="229" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#3B82F6" opacity="0.6">Zod validated</text>
+
+    <!-- Layer 3: Reports -->
+    <g transform="translate(0, 240)">
+      <rect x="0" y="0" width="220" height="90" rx="10" fill="#0F1729" stroke="#10B981" stroke-width="1"/>
+      <text x="16" y="22" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+            font-size="9" fill="#10B981" letter-spacing="1.2" font-weight="600">LAYER 3</text>
+      <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+            font-size="14" font-weight="700" fill="#E2E8F0">Audit-Ready Reports</text>
+
+      <!-- Output types -->
+      <g transform="translate(16, 54)">
+        <rect x="0" y="0" width="62" height="24" rx="4" fill="#0D3324"/>
+        <text x="31" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="8" fill="#34D399" text-anchor="middle">Citations</text>
+
+        <rect x="68" y="0" width="72" height="24" rx="4" fill="#0D3324"/>
+        <text x="104" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="8" fill="#34D399" text-anchor="middle">White-label</text>
+
+        <rect x="146" y="0" width="58" height="24" rx="4" fill="#0D3324"/>
+        <text x="175" y="16" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+              font-size="8" fill="#34D399" text-anchor="middle">PDF/JSON</text>
+      </g>
+    </g>
+
+    <!-- Right side: Tier labels -->
+    <g transform="translate(240, 0)">
+      <!-- Retail -->
+      <g transform="translate(0, 18)">
+        <line x1="0" y1="0" x2="24" y2="0" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <rect x="28" y="-11" width="200" height="22" rx="6" fill="#0F1729" stroke="#1E293B" stroke-width="0.5"/>
+        <text x="38" y="4" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+              font-size="10" fill="#94A3B8">
+          <tspan font-weight="700" fill="#E2E8F0">Retail</tspan>
+          <tspan fill="#64748B"> · earnings summaries</tspan>
+        </text>
+      </g>
+
+      <!-- B2B SaaS -->
+      <g transform="translate(0, 165)">
+        <line x1="0" y1="0" x2="24" y2="0" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <rect x="28" y="-11" width="200" height="22" rx="6" fill="#0F1729" stroke="#1E293B" stroke-width="0.5"/>
+        <text x="38" y="4" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+              font-size="10" fill="#94A3B8">
+          <tspan font-weight="700" fill="#E2E8F0">B2B SaaS</tspan>
+          <tspan fill="#64748B"> · due diligence</tspan>
+        </text>
+      </g>
+
+      <!-- Agency -->
+      <g transform="translate(0, 305)">
+        <line x1="0" y1="0" x2="24" y2="0" stroke="#475569" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <rect x="28" y="-11" width="200" height="22" rx="6" fill="#0F1729" stroke="#1E293B" stroke-width="0.5"/>
+        <text x="38" y="4" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+              font-size="10" fill="#94A3B8">
+          <tspan font-weight="700" fill="#E2E8F0">Agency</tspan>
+          <tspan fill="#64748B"> · white-label reports</tspan>
+        </text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Bottom accent line -->
+  <rect x="56" y="380" width="120" height="3" rx="1.5" fill="url(#accent-grad)" opacity="0.5"/>
+</svg>

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="140" viewBox="0 0 1200 140"
+     role="img" aria-labelledby="arch-title arch-desc">
+  <title id="arch-title">How it works</title>
+  <desc id="arch-desc">Architecture flow: Client → Edge Function → Source Ingestion → Claude Agent → Report Composer → Immutable Report</desc>
+
+  <defs>
+    <linearGradient id="sec-bg" x1="0" y1="0" x2="1200" y2="140" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#060B14"/>
+      <stop offset="100%" stop-color="#0C1425"/>
+    </linearGradient>
+    <linearGradient id="flow-line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0"/>
+      <stop offset="20%" stop-color="#3B82F6" stop-opacity="0.5"/>
+      <stop offset="80%" stop-color="#10B981" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="140" rx="12" fill="url(#sec-bg)"/>
+
+  <!-- Flow line -->
+  <line x1="56" y1="80" x2="1144" y2="80" stroke="url(#flow-line)" stroke-width="1"/>
+
+  <!-- Step 1: Client -->
+  <g transform="translate(80, 38)">
+    <rect x="0" y="0" width="130" height="36" rx="8" fill="#0F1729" stroke="#1E293B" stroke-width="1"/>
+    <text x="65" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="12" font-weight="700" fill="#E2E8F0" text-anchor="middle">Next.js / Expo</text>
+    <text x="65" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#64748B" text-anchor="middle">POST /reports</text>
+  </g>
+
+  <!-- Arrow -->
+  <text x="228" y="61" font-family="-apple-system, sans-serif" font-size="14" fill="#475569">→</text>
+
+  <!-- Step 2: Edge Function -->
+  <g transform="translate(260, 38)">
+    <rect x="0" y="0" width="150" height="36" rx="8" fill="#0F1729" stroke="#2563EB" stroke-width="1"/>
+    <text x="75" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="12" font-weight="700" fill="#60A5FA" text-anchor="middle">Edge Function</text>
+    <text x="75" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#64748B" text-anchor="middle">ScrapeGraphAI</text>
+  </g>
+
+  <!-- Arrow -->
+  <text x="428" y="61" font-family="-apple-system, sans-serif" font-size="14" fill="#475569">→</text>
+
+  <!-- Step 3: Claude Agent -->
+  <g transform="translate(460, 38)">
+    <rect x="0" y="0" width="160" height="36" rx="8" fill="#0F1729" stroke="#2563EB" stroke-width="1"/>
+    <text x="80" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="12" font-weight="700" fill="#60A5FA" text-anchor="middle">Claude Agent</text>
+    <text x="80" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#64748B" text-anchor="middle">managed-agents SDK</text>
+  </g>
+
+  <!-- Arrow -->
+  <text x="638" y="61" font-family="-apple-system, sans-serif" font-size="14" fill="#475569">→</text>
+
+  <!-- Step 4: Composer -->
+  <g transform="translate(670, 38)">
+    <rect x="0" y="0" width="150" height="36" rx="8" fill="#0F1729" stroke="#1E293B" stroke-width="1"/>
+    <text x="75" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="12" font-weight="700" fill="#E2E8F0" text-anchor="middle">Composer</text>
+    <text x="75" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#64748B" text-anchor="middle">Zod + citations</text>
+  </g>
+
+  <!-- Arrow -->
+  <text x="838" y="61" font-family="-apple-system, sans-serif" font-size="14" fill="#475569">→</text>
+
+  <!-- Step 5: Report -->
+  <g transform="translate(870, 38)">
+    <rect x="0" y="0" width="160" height="36" rx="8" fill="#0F1729" stroke="#10B981" stroke-width="1"/>
+    <text x="80" y="23" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="12" font-weight="700" fill="#34D399" text-anchor="middle">Immutable Report</text>
+    <text x="80" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#64748B" text-anchor="middle">audit-ready artifact</text>
+  </g>
+
+  <!-- Execution labels -->
+  <g transform="translate(56, 120)">
+    <text font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="9" fill="#475569">
+      <tspan>streaming (retail &lt;30s)</tspan>
+      <tspan dx="80">·</tspan>
+      <tspan dx="8">fire-and-forget + Realtime (B2B/agency 1–5min)</tspan>
+    </text>
+  </g>
+</svg>
